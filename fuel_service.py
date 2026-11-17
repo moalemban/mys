@@ -8,6 +8,7 @@ import threading
 import time
 import uuid
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -248,6 +249,17 @@ def launch_browser(p, headless: bool):
     )
 
 
+def enable_fast_mode(page: Page) -> None:
+    """Abort heavy static assets (fonts, images, stylesheets, media) to speed up page loads."""
+    def _route_handler(route):
+        if route.request.resource_type in {"image", "font", "media", "stylesheet"}:
+            route.abort()
+        else:
+            route.continue_()
+
+    page.route("**/*", _route_handler)
+
+
 class FuelBotService:
     """Thread-safe controller for multi-user monitoring, time-gated auto-booking, and confirmations."""
 
@@ -274,8 +286,42 @@ class FuelBotService:
         self._booking_history: deque[dict[str, str]] = deque(maxlen=50)
         self._last_notified_sig: str | None = None
         self._logged_in_credentials: tuple[str, str] | None = None
+        self._warm_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pw-warm")
+        self._warm_pw = None
+        self._warm_browser = None
+        self._warm_page: Page | None = None
+        self._warm_headless: bool | None = None
         self._scheduler_thread = threading.Thread(target=self._next_booking_scheduler, daemon=True)
         self._scheduler_thread.start()
+
+    def _run_on_warm_page(self, headless: bool, fn: Callable[[Page], Any]) -> Any:
+        """Execute a Playwright task on a persistent warm browser page (1-2s instead of 10s)."""
+        def _task():
+            if self._warm_page is None or self._warm_headless != headless:
+                try:
+                    if self._warm_browser:
+                        self._warm_browser.close()
+                    if self._warm_pw:
+                        self._warm_pw.stop()
+                except Exception:
+                    pass
+                self._warm_pw = sync_playwright().start()
+                self._warm_browser = launch_browser(self._warm_pw, headless)
+                ctx = self._warm_browser.new_context(viewport={"width": 1280, "height": 900})
+                self._warm_page = ctx.new_page()
+                enable_fast_mode(self._warm_page)
+                self._warm_headless = headless
+                self._logged_in_credentials = None
+            try:
+                return fn(self._warm_page)
+            except Exception:
+                # Reset warm page if browser crashed or disconnected
+                if self._warm_page and self._warm_page.is_closed():
+                    self._warm_page = None
+                    self._logged_in_credentials = None
+                raise
+
+        return self._warm_executor.submit(_task).result(timeout=60)
 
     def set_notifier(self, fn: Callable[[str, Path | None], None]) -> None:
         self._on_notify = fn
@@ -925,7 +971,7 @@ class FuelBotService:
 
 
     def direct_fetch(self, personnel_code: str, national_code: str) -> dict[str, Any]:
-        """Synchronously fetch user name, active ticket, or all open slots for Web Intermediary."""
+        """Synchronously fetch user name, active ticket, or all open slots using the warm browser."""
         p_code = normalize_text(personnel_code)
         n_code = normalize_text(national_code)
         if not p_code or not n_code:
@@ -934,78 +980,73 @@ class FuelBotService:
         with self._lock:
             headless = self.settings.headless
 
-        with sync_playwright() as p:
-            browser = launch_browser(p, headless)
-            try:
-                page = browser.new_page(viewport={"width": 1280, "height": 900})
-                self._login_with_credentials(page, p_code, n_code)
-                page.goto(BOOK_URL, wait_until="domcontentloaded")
+        def _work(page: Page) -> dict[str, Any]:
+            self._login_with_credentials(page, p_code, n_code)
+            page.goto(BOOK_URL, wait_until="domcontentloaded")
 
-                h1 = page.locator("header.ui-page-head h1")
-                user_name = normalize_text(h1.first.inner_text()) if h1.count() > 0 else p_code
-                parts = user_name.split(" ", 1)
-                f_name = parts[0] if parts else ""
-                l_name = parts[1] if len(parts) > 1 else f_name
+            h1 = page.locator("header.ui-page-head h1")
+            user_name = normalize_text(h1.first.inner_text()) if h1.count() > 0 else p_code
+            parts = user_name.split(" ", 1)
+            f_name = parts[0] if parts else ""
+            l_name = parts[1] if len(parts) > 1 else f_name
 
-                # Save/update user in profiles automatically
-                self.upsert_profile(p_code, n_code, f_name, l_name, label=user_name, activate=False)
+            self.upsert_profile(p_code, n_code, f_name, l_name, label=user_name, activate=False)
 
-                active_ticket = self._extract_active_ticket(page)
-                if active_ticket:
-                    page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
-                    with self._lock:
-                        self._active_ticket = active_ticket
-                        self._available_slots = []
-                        self._last_check_at = datetime.now().strftime("%H:%M:%S")
-                        self._last_status = f"دارای نوبت فعال (کد پیگیری: {active_ticket.get('کد پیگیری', '-')})"
-                    return {
-                        "ok": True,
-                        "user_name": user_name,
-                        "first_name": f_name,
-                        "last_name": l_name,
-                        "active_ticket": active_ticket,
-                        "slots": [],
-                    }
-
-                days = self._find_days(page, BotSettings())
-                slots: list[dict[str, Any]] = []
-                for day_href, day_label in days:
-                    full_day_url = day_href if day_href.startswith("http") else f"https://m7n.ir{day_href}"
-                    page.goto(full_day_url, wait_until="domcontentloaded")
-                    clean_day = self._extract_clean_day_label(page, day_label)
-                    stations = self._find_stations(page, BotSettings())
-                    for st_href, st_label in stations:
-                        full_st_url = st_href if st_href.startswith("http") else f"https://m7n.ir{st_href}"
-                        page.goto(full_st_url, wait_until="domcontentloaded")
-                        times = self._list_enabled_times(page)
-                        if times:
-                            slots.append(
-                                {
-                                    "day": clean_day,
-                                    "station": st_label,
-                                    "url": full_st_url,
-                                    "times": times,
-                                }
-                            )
-
+            active_ticket = self._extract_active_ticket(page)
+            if active_ticket:
                 page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
                 with self._lock:
-                    self._active_ticket = None
-                    self._available_slots = slots
+                    self._active_ticket = active_ticket
+                    self._available_slots = []
                     self._last_check_at = datetime.now().strftime("%H:%M:%S")
-                    self._last_status = (
-                        f"نوبت خالی پیدا شد! ({len(slots)} مورد)" if slots else "نوبت خالی یافت نشد"
-                    )
+                    self._last_status = f"دارای نوبت فعال (کد پیگیری: {active_ticket.get('کد پیگیری', '-')})"
                 return {
                     "ok": True,
                     "user_name": user_name,
                     "first_name": f_name,
                     "last_name": l_name,
-                    "active_ticket": None,
-                    "slots": slots,
+                    "active_ticket": active_ticket,
+                    "slots": [],
                 }
-            finally:
-                browser.close()
+
+            days = self._find_days(page, BotSettings())
+            slots: list[dict[str, Any]] = []
+            for day_href, day_label in days:
+                full_day_url = day_href if day_href.startswith("http") else f"https://m7n.ir{day_href}"
+                page.goto(full_day_url, wait_until="domcontentloaded")
+                clean_day = self._extract_clean_day_label(page, day_label)
+                stations = self._find_stations(page, BotSettings())
+                for st_href, st_label in stations:
+                    full_st_url = st_href if st_href.startswith("http") else f"https://m7n.ir{st_href}"
+                    page.goto(full_st_url, wait_until="domcontentloaded")
+                    times = self._list_enabled_times(page)
+                    if times:
+                        slots.append({"day": clean_day, "station": st_label, "url": full_st_url, "times": times})
+
+            page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
+            with self._lock:
+                self._active_ticket = None
+                self._available_slots = slots
+                self._last_check_at = datetime.now().strftime("%H:%M:%S")
+                self._last_status = f"نوبت خالی پیدا شد! ({len(slots)} مورد)" if slots else "نوبت خالی یافت نشد"
+            return {
+                "ok": True,
+                "user_name": user_name,
+                "first_name": f_name,
+                "last_name": l_name,
+                "active_ticket": None,
+                "slots": slots,
+            }
+
+        return self._run_on_warm_page(headless, _work)
+
+    def check_now_sync(self) -> dict[str, Any]:
+        """Run an immediate check for the active user and return the structured result."""
+        with self._lock:
+            p_code = self.settings.personnel_code
+            n_code = self.settings.national_code
+            self._attempt_count += 1
+        return self.direct_fetch(p_code, n_code)
 
     def direct_book(
         self,
@@ -1246,6 +1287,7 @@ class FuelBotService:
                 browser = launch_browser(p, self.settings.headless)
                 context = browser.new_context(viewport={"width": 1280, "height": 900})
                 page = context.new_page()
+                enable_fast_mode(page)
                 try:
                     while not self._stop_event.is_set():
                         with self._lock:

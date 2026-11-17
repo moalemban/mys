@@ -98,6 +98,7 @@ class BotCommandRouter:
     def __init__(self, service: "FuelBotService", auth: "AuthManager | None" = None) -> None:
         self.service = service
         self.auth = auth
+        self._chat_states: dict[str, dict[str, str]] = {}
 
     def main_inline_rows(self) -> list[list[tuple[str, str]]]:
         st = self.service.get_status()
@@ -163,7 +164,7 @@ class BotCommandRouter:
         for p in cfg.profiles:
             mark = "✅ " if p.get("id") == cfg.active_profile_id else "👤 "
             rows.append([(f"{mark}{p.get('label') or p['personnel_code']} ({p['personnel_code']})", f"use:{p['id']}")])
-        rows.append([("➕ راهنمای افزودن کاربر", "help:adduser"), ("🔙 منوی اصلی", "menu:main")])
+        rows.append([("➕ افزودن کاربر جدید", "act:adduser"), ("🔙 منوی اصلی", "menu:main")])
         return rows
 
     def settings_inline_rows(self) -> list[list[tuple[str, str]]]:
@@ -249,28 +250,91 @@ class BotCommandRouter:
 
         if self.auth is not None:
             chat_key = f"chat:{chat_id}"
-            if cmd.startswith("/login "):
-                parts = cmd.split(maxsplit=2)
-                if len(parts) < 3:
-                    return "فرمت ورود: `/login نام_کاربری رمز_عبور`", None
-                user = self.auth.login_chat(chat_key, parts[1], parts[2])
-                if not user:
-                    return "❌ نام کاربری یا رمز عبور اشتباه است.", None
-                return (
-                    f"✅ خوش آمدید {user['username']}!\nاز دکمه‌های شیشه‌ای زیر استفاده کنید:",
-                    self.main_inline_rows(),
-                )
+            state = self._chat_states.get(chat_key)
 
             if cmd in {"/logout", "act:logout"}:
                 self.auth.logout_chat(chat_key)
-                return "🚪 از حساب ربات خارج شدید. برای ورود مجدد:\n`/login نام_کاربری رمز_عبور`", None
+                self._chat_states[chat_key] = {"step": "awaiting_username"}
+                return "🚪 از حساب خارج شدید.\n\n🔐 برای ورود مجدد، **نام کاربری** خود را ارسال کنید:", None
+
+            if cmd.startswith("/login "):
+                parts = cmd.split(maxsplit=2)
+                if len(parts) < 3:
+                    return "فرمت: `/login نام_کاربری رمز_عبور`", None
+                user = self.auth.login_chat(chat_key, parts[1], parts[2])
+                if not user:
+                    return "❌ نام کاربری یا رمز عبور اشتباه است.", None
+                self._chat_states.pop(chat_key, None)
+                if not self.service.settings.profiles:
+                    self._chat_states[chat_key] = {"step": "awaiting_profile_personnel"}
+                    return (
+                        f"✅ خوش آمدید {user['username']}!\n\n"
+                        "👤 هنوز هیچ کاربر سوختی تعریف نشده است. برای شروع باید حداقل یک کاربر تعریف کنید.\n"
+                        "لطفاً **کد پرسنلی** کاربر سوخت را ارسال کنید:",
+                        None,
+                    )
+                return f"✅ خوش آمدید {user['username']}!\nاز دکمه‌های شیشه‌ای زیر استفاده کنید:", self.main_inline_rows()
 
             if not self.auth.get_chat_user(chat_key):
+                if state and state.get("step") == "awaiting_password":
+                    username = state.get("username", "")
+                    try:
+                        self.auth.check_rate_limit(chat_key)
+                    except ValueError as exc:
+                        return f"⏳ {exc}", None
+                    user = self.auth.login_chat(chat_key, username, cmd)
+                    if not user:
+                        self.auth.record_failure(chat_key)
+                        self._chat_states[chat_key] = {"step": "awaiting_username"}
+                        return "❌ نام کاربری یا رمز عبور اشتباه است.\n\n🔐 لطفاً دوباره **نام کاربری** خود را ارسال کنید:", None
+                    self.auth.clear_failures(chat_key)
+                    self._chat_states.pop(chat_key, None)
+                    if not self.service.settings.profiles:
+                        self._chat_states[chat_key] = {"step": "awaiting_profile_personnel"}
+                        return (
+                            f"✅ خوش آمدید {user['username']}!\n\n"
+                            "👤 هنوز هیچ کاربر سوختی تعریف نشده است. باید حداقل یک کاربر تعریف کنید.\n"
+                            "لطفاً **کد پرسنلی** را ارسال کنید:",
+                            None,
+                        )
+                    return f"✅ خوش آمدید {user['username']}!\nاز دکمه‌های شیشه‌ای زیر استفاده کنید:", self.main_inline_rows()
+
+                if state and state.get("step") == "awaiting_username" and not cmd.startswith("/"):
+                    self._chat_states[chat_key] = {"step": "awaiting_password", "username": cmd}
+                    return f"👤 نام کاربری: `{cmd}`\n🔑 حالا **رمز عبور** را ارسال کنید:", None
+
+                self._chat_states[chat_key] = {"step": "awaiting_username"}
+                return "🔐 برای ورود به ربات، لطفاً **نام کاربری** خود را ارسال کنید:", None
+
+            # Logged-in interactive onboarding / add-user wizard
+            if state and state.get("step") == "awaiting_profile_personnel" and not cmd.startswith("/"):
+                self._chat_states[chat_key] = {"step": "awaiting_profile_national", "personnel_code": cmd}
+                return f"کد پرسنلی `{cmd}` ثبت شد.\n🆔 حالا **کد ملی ۱۰ رقمی** را ارسال کنید:", None
+
+            if state and state.get("step") == "awaiting_profile_national" and not cmd.startswith("/"):
+                p_code = state.get("personnel_code", "")
+                self._chat_states.pop(chat_key, None)
+                try:
+                    prof = self.service.upsert_profile(p_code, cmd, activate=True)
+                    return (
+                        f"✅ کاربر سوخت ({prof['label']}) با موفقیت ذخیره و فعال شد!\n"
+                        "حالا می‌توانید از تمام امکانات ربات استفاده کنید:",
+                        self.main_inline_rows(),
+                    )
+                except Exception as exc:
+                    return f"❌ خطا در ثبت کاربر: {exc}", self.main_inline_rows()
+
+            if not self.service.settings.profiles and cmd not in {"act:adduser", "act:logout", "/logout"}:
+                self._chat_states[chat_key] = {"step": "awaiting_profile_personnel"}
                 return (
-                    "🔒 برای استفاده از ربات، لطفاً با نام کاربری و رمز عبور خود وارد شوید:\n\n"
-                    "`/login نام_کاربری رمز_عبور`",
+                    "👤 هنوز هیچ کاربر سوختی تعریف نشده است! لطفاً ابتدا یک کاربر تعریف کنید.\n"
+                    "لطفاً **کد پرسنلی** را ارسال کنید:",
                     None,
                 )
+
+        if cmd == "act:adduser":
+            self._chat_states[f"chat:{chat_id}"] = {"step": "awaiting_profile_personnel"}
+            return "➕ افزودن کاربر جدید\nلطفاً **کد پرسنلی** را ارسال کنید:", None
 
         # Inline menu navigation
         if cmd in {"/start", "منو", "/menu", "menu:main"}:
@@ -354,7 +418,26 @@ class BotCommandRouter:
             return msg, self.main_inline_rows()
 
         if cmd in {"🔍 بررسی فوری", "/check", "act:check"}:
-            return f"🔍 {self.service.trigger_check_now()}", self.main_inline_rows()
+            try:
+                res = self.service.check_now_sync()
+                if res.get("active_ticket"):
+                    t = res["active_ticket"]
+                    msg = (
+                        f"🎫 کاربر فعلی ({res['user_name']}) دارای نوبت فعال است:\n"
+                        f"کد پیگیری: {t.get('کد پیگیری', '-')}\n"
+                        f"📅 {t.get('روز', '-')} | ⏰ {t.get('ساعت', '-')}\n"
+                        f"⛽ {t.get('جایگاه', '-')} | 🛢 {t.get('میزان سوخت', '-')}"
+                    )
+                    return msg, self.main_inline_rows()
+                slots = res.get("slots") or []
+                if slots:
+                    return (
+                        f"✅ بررسی انجام شد ({res['user_name']}) — {len(slots)} جایگاه دارای ظرفیت پیدا شد:",
+                        self.stations_inline_rows(),
+                    )
+                return f"ℹ️ بررسی انجام شد ({res['user_name']}) — در حال حاضر نوبت خالی باز نیست.", self.main_inline_rows()
+            except Exception as exc:
+                return f"❌ خطا در بررسی: {exc}", self.main_inline_rows()
 
         if cmd in {"🔔 فقط خبر بده", "/notify_mode", "mode:notify_only"}:
             self.service.update_settings({"mode": "notify_only"})
@@ -669,11 +752,17 @@ class MultiMessengerHub:
 
         slots = self.service.get_status().get("available_slots") or []
         if not slots:
+            try:
+                res = self.service.check_now_sync()
+                slots = res.get("slots") or []
+            except Exception:
+                slots = []
+        if not slots:
             self._send_tg_like(
                 base_host,
                 token,
                 chat_id,
-                "⚠️ هنوز نوبت خالی در حافظه نیست. ابتدا «🔍 بررسی فوری» را بزنید.",
+                "⚠️ در حال حاضر نوبت خالی روی سایت باز نیست که خروجی گرفته شود.",
                 inline_rows=self.router.main_inline_rows(),
             )
             return
