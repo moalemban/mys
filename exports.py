@@ -101,7 +101,7 @@ def export_slots_pdf(slots: list[dict[str, Any]], filename: str = "available_slo
 </style>
 </head>
 <body>
-  <h1>⛽ گزارش نوبت‌های خالی سوخت (m7n.ir/fuel)</h1>
+  <h1>⛽ گزارش نوبت‌های خالی سوخت</h1>
   <div class="meta">زمان تهیه گزارش: {now_str} | تعداد جایگاه/روز دارای ظرفیت: {len(slots)}</div>
   <table>
     <thead>

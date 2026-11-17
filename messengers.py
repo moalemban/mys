@@ -496,9 +496,9 @@ class MultiMessengerHub:
         """Apply bot Name, Description, Short Description, and Slash Commands to Telegram & Bale."""
         cfg = self.service.settings
         name = "⛽ نوبت‌یار هوشمند سوخت"
-        short_desc = "پایش لحظه‌ای، اطلاع‌رسانی سریع و ثبت خودکار نوبت سوخت (m7n.ir/fuel) با رزرو گروهی و خروجی اکسل/PDF"
+        short_desc = "پایش لحظه‌ای، اطلاع‌رسانی سریع و ثبت خودکار نوبت سوخت با رزرو گروهی و خروجی اکسل/PDF"
         desc = (
-            "⛽ ربات هوشمند نوبت‌دهی سوخت (m7n.ir/fuel)\n\n"
+            "⛽ ربات هوشمند نوبت‌دهی سوخت\n\n"
             "✨ امکانات:\n"
             "• پایش لحظه‌ای و اطلاع‌رسانی جایگاه‌به‌جایگاه\n"
             "• ثبت خودکار در بازه زمانی دلخواه (۱۴:۰۰ تا ۱۶:۳۰ / ۱۷:۰۰)\n"
