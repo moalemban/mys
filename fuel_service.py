@@ -18,6 +18,8 @@ from urllib.parse import urlparse
 from dotenv import load_dotenv
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
 
+from storage import StateStorage
+
 BASE_URL = "https://m7n.ir/fuel"
 BOOK_URL = "https://m7n.ir/fuel/book"
 CONFIG_FILE = Path("config.json")
@@ -201,14 +203,11 @@ class BotSettings:
             soroush_bot_token=os.getenv("SOROUSH_BOT_TOKEN", "").strip(),
             soroush_chat_id=os.getenv("SOROUSH_CHAT_ID", "").strip(),
         )
-        if CONFIG_FILE.exists():
-            try:
-                raw = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-                for key, val in raw.items():
-                    if hasattr(defaults, key):
-                        setattr(defaults, key, val)
-            except Exception:
-                pass
+        raw = StateStorage().get_json("bot_config", CONFIG_FILE)
+        if raw:
+            for key, val in raw.items():
+                if hasattr(defaults, key):
+                    setattr(defaults, key, val)
         defaults.poll_interval = max(2.0, float(defaults.poll_interval))
         if defaults.mode not in {"notify_only", "auto_book"}:
             defaults.mode = "notify_only"
@@ -217,10 +216,7 @@ class BotSettings:
         return defaults
 
     def save(self) -> None:
-        CONFIG_FILE.write_text(
-            json.dumps(asdict(self), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        StateStorage().set_json("bot_config", asdict(self), CONFIG_FILE)
 
 
 def play_alert() -> None:
@@ -780,16 +776,16 @@ class FuelBotService:
             self._active_ticket = ticket_after
             self._booked_info = msg
             self._last_status = f"نوبت ثبت شد! (کد پیگیری: {tracking})"
-            self._booking_history.appendleft(
-                {
-                    "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "user": f"{first_name} {last_name}",
-                    "station": station_label,
-                    "slot": chosen_time,
-                    "fuel": f"{cfg.fuel_amount} لیتر",
-                    "tracking": tracking,
-                }
-            )
+            hist_entry = {
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "user": f"{first_name} {last_name}",
+                "station": station_label,
+                "slot": chosen_time,
+                "fuel": f"{cfg.fuel_amount} لیتر",
+                "tracking": tracking,
+            }
+            self._booking_history.appendleft(hist_entry)
+            StateStorage().add_booking_history(hist_entry)
         self.log(msg.replace("\n", " | "))
         self._notify(msg, SCREENSHOT_PATH)
         return True

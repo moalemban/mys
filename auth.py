@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from storage import StateStorage
+
 AUTH_FILE = Path("auth_users.json")
 
 
@@ -22,6 +24,7 @@ class AuthManager:
     """Manages web/miniapp & messenger authentication, password changes, and admin user CRUD."""
 
     def __init__(self) -> None:
+        self._storage = StateStorage()
         self._data: dict[str, Any] = self._load()
         self._failed_attempts: dict[str, list[float]] = {}
 
@@ -40,14 +43,10 @@ class AuthManager:
         self._failed_attempts.pop(key, None)
 
     def _load(self) -> dict[str, Any]:
-        if AUTH_FILE.exists():
-            try:
-                data = json.loads(AUTH_FILE.read_text(encoding="utf-8"))
-                if "users" in data and "secret" in data:
-                    data.setdefault("chat_sessions", {})
-                    return data
-            except Exception:
-                pass
+        data = self._storage.get_json("auth_users", AUTH_FILE)
+        if data and "users" in data and "secret" in data:
+            data.setdefault("chat_sessions", {})
+            return data
 
         default_user = os.getenv("ADMIN_USERNAME", "admin").strip() or "admin"
         default_pass = os.getenv("ADMIN_PASSWORD", "admin1234").strip() or "admin1234"
@@ -70,7 +69,7 @@ class AuthManager:
 
     def _save(self, data: dict[str, Any] | None = None) -> None:
         target = data if data is not None else self._data
-        AUTH_FILE.write_text(json.dumps(target, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._storage.set_json("auth_users", target, AUTH_FILE)
 
     def authenticate(self, username: str, password: str) -> dict[str, Any] | None:
         user = self._data["users"].get(username.strip())
