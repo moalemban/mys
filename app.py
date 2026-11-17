@@ -47,7 +47,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-PUBLIC_PATHS = {"/login", "/miniapp", "/api/auth/login", "/manifest.json", "/sw.js", "/api/bot/avatar"}
+PUBLIC_PATHS = {"/login", "/miniapp", "/health", "/api/auth/login", "/manifest.json", "/sw.js", "/api/bot/avatar"}
 
 
 @app.middleware("http")
@@ -75,6 +75,11 @@ async def require_auth(request: Request, call_next):
     if path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@app.get("/health")
+def health():
+    return {"ok": True, "running": service.get_status()["running"]}
 
 
 @app.get("/login", response_class=HTMLResponse)

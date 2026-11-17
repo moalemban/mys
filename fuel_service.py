@@ -207,6 +207,8 @@ class BotSettings:
         if raw:
             for key, val in raw.items():
                 if hasattr(defaults, key):
+                    if isinstance(val, str) and not val.strip() and getattr(defaults, key):
+                        continue
                     setattr(defaults, key, val)
         defaults.poll_interval = max(2.0, float(defaults.poll_interval))
         if defaults.mode not in {"notify_only", "auto_book"}:
@@ -1066,44 +1068,41 @@ class FuelBotService:
         with self._lock:
             headless = self.settings.headless
 
-        with sync_playwright() as p:
-            browser = launch_browser(p, headless)
-            try:
-                page = browser.new_page(viewport={"width": 1280, "height": 900})
-                self._login_with_credentials(page, p_code, n_code)
-                page.goto(station_url, wait_until="domcontentloaded")
+        def _work(page: Page) -> dict[str, Any]:
+            self._login_with_credentials(page, p_code, n_code)
+            page.goto(station_url, wait_until="domcontentloaded")
 
-                h1 = page.locator("header.ui-page-head h1")
-                user_name = normalize_text(h1.first.inner_text()) if h1.count() > 0 else ""
-                parts = user_name.split(" ", 1)
-                f_name = first_name.strip() or (parts[0] if parts else "")
-                l_name = last_name.strip() or (parts[1] if len(parts) > 1 else f_name)
-                r_nat = normalize_text(rec_national_code) or n_code
+            h1 = page.locator("header.ui-page-head h1")
+            user_name = normalize_text(h1.first.inner_text()) if h1.count() > 0 else ""
+            parts = user_name.split(" ", 1)
+            f_name = first_name.strip() or (parts[0] if parts else "")
+            l_name = last_name.strip() or (parts[1] if len(parts) > 1 else f_name)
+            r_nat = normalize_text(rec_national_code) or n_code
 
-                selected = self._select_specific_time(page, chosen_time)
-                if not selected:
-                    raise RuntimeError(f"ساعت {chosen_time} دیگر خالی نیست.")
+            selected = self._select_specific_time(page, chosen_time)
+            if not selected:
+                raise RuntimeError(f"ساعت {chosen_time} دیگر خالی نیست.")
 
-                temp_cfg = BotSettings(
-                    personnel_code=p_code,
-                    national_code=n_code,
-                    recipient_first_name=f_name,
-                    recipient_last_name=l_name,
-                    recipient_national_code=r_nat,
-                    fuel_amount=normalize_text(fuel_amount) or "40",
-                    dry_run=dry_run,
-                )
-                self._submit_slot(page, temp_cfg, "رزرو وب واسطه", station_url, selected)
-                ticket = self._extract_active_ticket(page)
-                return {
-                    "ok": True,
-                    "dry_run": dry_run,
-                    "time": selected,
-                    "ticket": ticket,
-                    "message": self._booked_info or "انجام شد",
-                }
-            finally:
-                browser.close()
+            temp_cfg = BotSettings(
+                personnel_code=p_code,
+                national_code=n_code,
+                recipient_first_name=f_name,
+                recipient_last_name=l_name,
+                recipient_national_code=r_nat,
+                fuel_amount=normalize_text(fuel_amount) or "40",
+                dry_run=dry_run,
+            )
+            self._submit_slot(page, temp_cfg, "رزرو وب واسطه", station_url, selected)
+            ticket = self._extract_active_ticket(page)
+            return {
+                "ok": True,
+                "dry_run": dry_run,
+                "time": selected,
+                "ticket": ticket,
+                "message": self._booked_info or "انجام شد",
+            }
+
+        return self._run_on_warm_page(headless, _work)
 
     def direct_cancel(self, personnel_code: str = "", national_code: str = "") -> dict[str, Any]:
         """Cancel the active fuel appointment for the given or active user."""
@@ -1115,35 +1114,32 @@ class FuelBotService:
         if not p_code or not n_code:
             raise ValueError("کد پرسنلی و کد ملی برای لغو نوبت الزامی است.")
 
-        with sync_playwright() as p:
-            browser = launch_browser(p, headless)
-            try:
-                page = browser.new_page(viewport={"width": 1280, "height": 900})
-                self._login_with_credentials(page, p_code, n_code)
-                page.goto(BOOK_URL, wait_until="domcontentloaded")
+        def _work(page: Page) -> dict[str, Any]:
+            self._login_with_credentials(page, p_code, n_code)
+            page.goto(BOOK_URL, wait_until="domcontentloaded")
 
-                cancel_btn = page.locator('form[action*="/fuel/cancel"] button[type="submit"]')
-                if cancel_btn.count() == 0:
-                    raise RuntimeError("نوبت فعالی برای لغو وجود ندارد.")
+            cancel_btn = page.locator('form[action*="/fuel/cancel"] button[type="submit"]')
+            if cancel_btn.count() == 0:
+                raise RuntimeError("نوبت فعالی برای لغو وجود ندارد.")
 
-                ticket_before = self._extract_active_ticket(page)
-                tracking = ticket_before.get("کد پیگیری", "-") if ticket_before else "-"
+            ticket_before = self._extract_active_ticket(page)
+            tracking = ticket_before.get("کد پیگیری", "-") if ticket_before else "-"
 
-                page.once("dialog", lambda d: d.accept())
-                cancel_btn.first.click()
-                page.wait_for_load_state("networkidle", timeout=15000)
-                page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
+            page.once("dialog", lambda d: d.accept())
+            cancel_btn.first.click()
+            page.wait_for_load_state("networkidle", timeout=15000)
+            page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
 
-                msg = f"🗑 نوبت سوخت (کد پیگیری: {tracking}) برای کاربر {p_code} با موفقیت لغو شد."
-                with self._lock:
-                    if p_code == self.settings.personnel_code:
-                        self._active_ticket = None
-                        self._last_status = "نوبت لغو شد"
-                self.log(msg)
-                self._notify(msg, SCREENSHOT_PATH)
-                return {"ok": True, "message": msg, "tracking_code": tracking}
-            finally:
-                browser.close()
+            msg = f"🗑 نوبت سوخت (کد پیگیری: {tracking}) برای کاربر {p_code} با موفقیت لغو شد."
+            with self._lock:
+                if p_code == self.settings.personnel_code:
+                    self._active_ticket = None
+                    self._last_status = "نوبت لغو شد"
+            self.log(msg)
+            self._notify(msg, SCREENSHOT_PATH)
+            return {"ok": True, "message": msg, "tracking_code": tracking}
+
+        return self._run_on_warm_page(headless, _work)
 
     def batch_book(self, profile_ids: list[str] | None = None) -> list[dict[str, Any]]:
         """Book fuel appointments sequentially for a group of saved user profiles."""

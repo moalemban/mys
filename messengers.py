@@ -684,9 +684,12 @@ class MultiMessengerHub:
         except Exception:
             self._send_tg_like(base_host, token, chat_id, text, inline_rows=inline_rows)
 
-    def _answer_callback(self, base_host: str, token: str, callback_id: str) -> None:
+    def _answer_callback(self, base_host: str, token: str, callback_id: str, text: str = "") -> None:
         try:
-            _http_json(f"{base_host}/bot{token}/answerCallbackQuery", {"callback_query_id": callback_id}, timeout=10)
+            payload: dict[str, Any] = {"callback_query_id": callback_id}
+            if text:
+                payload["text"] = text
+            _http_json(f"{base_host}/bot{token}/answerCallbackQuery", payload, timeout=10)
         except Exception:
             pass
 
@@ -723,7 +726,8 @@ class MultiMessengerHub:
                 msg = cb.get("message") or {}
                 chat_id = str(msg.get("chat", {}).get("id", ""))
                 message_id = msg.get("message_id")
-                self._answer_callback(base_host, token, cb_id)
+                toast = "⏳ در حال بررسی..." if data in {"act:check", "export:excel", "export:pdf"} else ""
+                self._answer_callback(base_host, token, cb_id, text=toast)
                 if chat_id and data:
                     if data in {"export:excel", "export:pdf"}:
                         self._handle_export_callback(base_host, token, chat_id, data)

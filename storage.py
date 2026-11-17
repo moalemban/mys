@@ -8,11 +8,14 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from dotenv import load_dotenv
+
 
 class StateStorage:
     """Persists JSON state and booking history to Supabase REST API with local JSON fallback."""
 
     def __init__(self) -> None:
+        load_dotenv()
         self.supabase_url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
         self.supabase_key = os.getenv("SUPABASE_KEY", "").strip()
 
