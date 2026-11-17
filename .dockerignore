@@ -1,0 +1,9 @@
+.venv/
+.git/
+__pycache__/
+exports/
+.env
+config.json
+auth_users.json
+*.log
+latest_status.png
