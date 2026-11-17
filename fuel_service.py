@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError, sync_playwright
@@ -91,6 +92,24 @@ def extract_next_eligible_date(note_text: str) -> tuple[str, str] | None:
     jy, jm, jd = int(m.group(1)), int(m.group(2)), int(m.group(3))
     g_date = jalali_to_gregorian(jy, jm, jd)
     return f"{jy:04d}/{jm:02d}/{jd:02d}", g_date.isoformat()
+
+
+def validate_station_url(url: str) -> str:
+    """Strictly allow only https://m7n.ir/fuel... URLs to prevent SSRF."""
+    parsed = urlparse(url.strip())
+    if parsed.scheme != "https" or parsed.netloc.lower() != "m7n.ir" or not parsed.path.startswith("/fuel"):
+        raise ValueError("آدرس جایگاه نامعتبر است.")
+    return url.strip()
+
+
+def mask_secret(value: str) -> str:
+    """Mask bot tokens for safe display in API responses."""
+    v = value.strip()
+    if not v:
+        return ""
+    if len(v) <= 8:
+        return "****"
+    return f"****{v[-4:]}"
 
 
 @dataclass
@@ -375,6 +394,11 @@ class FuelBotService:
                     continue
                 elif key in {"min_time", "max_time", "fallback_max_time"}:
                     val = normalize_text(str(val))
+                elif key in {"telegram_bot_token", "bale_bot_token", "rubika_bot_token", "soroush_bot_token"}:
+                    s_val = str(val).strip()
+                    if s_val.startswith("****"):
+                        continue
+                    val = s_val
                 elif key == "group_profile_ids" and isinstance(val, list):
                     val = [str(x) for x in val]
                 elif isinstance(val, str):
@@ -418,65 +442,6 @@ class FuelBotService:
                 return False
 
 
-    def direct_book(
-        self,
-        personnel_code: str,
-        national_code: str,
-        station_url: str,
-        chosen_time: str,
-        fuel_amount: str = "40",
-        first_name: str = "",
-        last_name: str = "",
-        rec_national_code: str = "",
-        dry_run: bool = False,
-    ) -> dict[str, Any]:
-        """Synchronously book a specific slot via the Web Intermediary."""
-        p_code = normalize_text(personnel_code)
-        n_code = normalize_text(national_code)
-        if not (p_code and n_code and station_url and chosen_time):
-            raise ValueError("اطلاعات نوبت (کد پرسنلی، کد ملی، جایگاه و ساعت) کامل نیست.")
-
-        with self._lock:
-            headless = self.settings.headless
-
-        with sync_playwright() as p:
-            browser = launch_browser(p, headless)
-            try:
-                page = browser.new_page(viewport={"width": 1280, "height": 900})
-                self._login_with_credentials(page, p_code, n_code)
-                page.goto(station_url, wait_until="domcontentloaded")
-
-                h1 = page.locator("header.ui-page-head h1")
-                user_name = normalize_text(h1.first.inner_text()) if h1.count() > 0 else ""
-                parts = user_name.split(" ", 1)
-                f_name = first_name.strip() or (parts[0] if parts else "")
-                l_name = last_name.strip() or (parts[1] if len(parts) > 1 else f_name)
-                r_nat = normalize_text(rec_national_code) or n_code
-
-                selected = self._select_specific_time(page, chosen_time)
-                if not selected:
-                    raise RuntimeError(f"ساعت {chosen_time} دیگر خالی نیست.")
-
-                temp_cfg = BotSettings(
-                    personnel_code=p_code,
-                    national_code=n_code,
-                    recipient_first_name=f_name,
-                    recipient_last_name=l_name,
-                    recipient_national_code=r_nat,
-                    fuel_amount=normalize_text(fuel_amount) or "40",
-                    dry_run=dry_run,
-                )
-                self._submit_slot(page, temp_cfg, "رزرو وب واسطه", station_url, selected)
-                ticket = self._extract_active_ticket(page)
-                return {
-                    "ok": True,
-                    "dry_run": dry_run,
-                    "time": selected,
-                    "ticket": ticket,
-                    "message": self._booked_info or "انجام شد",
-                }
-            finally:
-                browser.close()
 
             if not self.settings.personnel_code or not self.settings.national_code:
                 raise ValueError("کد پرسنلی و کد ملی نباید خالی باشد.")
@@ -497,65 +462,6 @@ class FuelBotService:
                 return False
 
 
-    def direct_book(
-        self,
-        personnel_code: str,
-        national_code: str,
-        station_url: str,
-        chosen_time: str,
-        fuel_amount: str = "40",
-        first_name: str = "",
-        last_name: str = "",
-        rec_national_code: str = "",
-        dry_run: bool = False,
-    ) -> dict[str, Any]:
-        """Synchronously book a specific slot via the Web Intermediary."""
-        p_code = normalize_text(personnel_code)
-        n_code = normalize_text(national_code)
-        if not (p_code and n_code and station_url and chosen_time):
-            raise ValueError("اطلاعات نوبت (کد پرسنلی، کد ملی، جایگاه و ساعت) کامل نیست.")
-
-        with self._lock:
-            headless = self.settings.headless
-
-        with sync_playwright() as p:
-            browser = launch_browser(p, headless)
-            try:
-                page = browser.new_page(viewport={"width": 1280, "height": 900})
-                self._login_with_credentials(page, p_code, n_code)
-                page.goto(station_url, wait_until="domcontentloaded")
-
-                h1 = page.locator("header.ui-page-head h1")
-                user_name = normalize_text(h1.first.inner_text()) if h1.count() > 0 else ""
-                parts = user_name.split(" ", 1)
-                f_name = first_name.strip() or (parts[0] if parts else "")
-                l_name = last_name.strip() or (parts[1] if len(parts) > 1 else f_name)
-                r_nat = normalize_text(rec_national_code) or n_code
-
-                selected = self._select_specific_time(page, chosen_time)
-                if not selected:
-                    raise RuntimeError(f"ساعت {chosen_time} دیگر خالی نیست.")
-
-                temp_cfg = BotSettings(
-                    personnel_code=p_code,
-                    national_code=n_code,
-                    recipient_first_name=f_name,
-                    recipient_last_name=l_name,
-                    recipient_national_code=r_nat,
-                    fuel_amount=normalize_text(fuel_amount) or "40",
-                    dry_run=dry_run,
-                )
-                self._submit_slot(page, temp_cfg, "رزرو وب واسطه", station_url, selected)
-                ticket = self._extract_active_ticket(page)
-                return {
-                    "ok": True,
-                    "dry_run": dry_run,
-                    "time": selected,
-                    "ticket": ticket,
-                    "message": self._booked_info or "انجام شد",
-                }
-            finally:
-                browser.close()
 
             self._stop_event.set()
             self._wake_event.set()
@@ -574,6 +480,9 @@ class FuelBotService:
 
     def get_status(self) -> dict[str, Any]:
         with self._lock:
+            safe_settings = asdict(self.settings)
+            for secret_key in ("telegram_bot_token", "bale_bot_token", "rubika_bot_token", "soroush_bot_token"):
+                safe_settings[secret_key] = mask_secret(safe_settings.get(secret_key, ""))
             return {
                 "running": self._running,
                 "mode": self.settings.mode,
@@ -588,7 +497,7 @@ class FuelBotService:
                 "booking_history": list(self._booking_history),
                 "has_screenshot": SCREENSHOT_PATH.exists(),
                 "logs": list(self._logs),
-                "settings": asdict(self.settings),
+                "settings": safe_settings,
             }
 
     def _login_with_credentials(self, page: Page, personnel_code: str, national_code: str) -> None:
@@ -1013,6 +922,91 @@ class FuelBotService:
         return False
 
 
+
+
+    def direct_fetch(self, personnel_code: str, national_code: str) -> dict[str, Any]:
+        """Synchronously fetch user name, active ticket, or all open slots for Web Intermediary."""
+        p_code = normalize_text(personnel_code)
+        n_code = normalize_text(national_code)
+        if not p_code or not n_code:
+            raise ValueError("کد پرسنلی و کد ملی الزامی است.")
+
+        with self._lock:
+            headless = self.settings.headless
+
+        with sync_playwright() as p:
+            browser = launch_browser(p, headless)
+            try:
+                page = browser.new_page(viewport={"width": 1280, "height": 900})
+                self._login_with_credentials(page, p_code, n_code)
+                page.goto(BOOK_URL, wait_until="domcontentloaded")
+
+                h1 = page.locator("header.ui-page-head h1")
+                user_name = normalize_text(h1.first.inner_text()) if h1.count() > 0 else p_code
+                parts = user_name.split(" ", 1)
+                f_name = parts[0] if parts else ""
+                l_name = parts[1] if len(parts) > 1 else f_name
+
+                # Save/update user in profiles automatically
+                self.upsert_profile(p_code, n_code, f_name, l_name, label=user_name, activate=False)
+
+                active_ticket = self._extract_active_ticket(page)
+                if active_ticket:
+                    page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
+                    with self._lock:
+                        self._active_ticket = active_ticket
+                        self._available_slots = []
+                        self._last_check_at = datetime.now().strftime("%H:%M:%S")
+                        self._last_status = f"دارای نوبت فعال (کد پیگیری: {active_ticket.get('کد پیگیری', '-')})"
+                    return {
+                        "ok": True,
+                        "user_name": user_name,
+                        "first_name": f_name,
+                        "last_name": l_name,
+                        "active_ticket": active_ticket,
+                        "slots": [],
+                    }
+
+                days = self._find_days(page, BotSettings())
+                slots: list[dict[str, Any]] = []
+                for day_href, day_label in days:
+                    full_day_url = day_href if day_href.startswith("http") else f"https://m7n.ir{day_href}"
+                    page.goto(full_day_url, wait_until="domcontentloaded")
+                    clean_day = self._extract_clean_day_label(page, day_label)
+                    stations = self._find_stations(page, BotSettings())
+                    for st_href, st_label in stations:
+                        full_st_url = st_href if st_href.startswith("http") else f"https://m7n.ir{st_href}"
+                        page.goto(full_st_url, wait_until="domcontentloaded")
+                        times = self._list_enabled_times(page)
+                        if times:
+                            slots.append(
+                                {
+                                    "day": clean_day,
+                                    "station": st_label,
+                                    "url": full_st_url,
+                                    "times": times,
+                                }
+                            )
+
+                page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
+                with self._lock:
+                    self._active_ticket = None
+                    self._available_slots = slots
+                    self._last_check_at = datetime.now().strftime("%H:%M:%S")
+                    self._last_status = (
+                        f"نوبت خالی پیدا شد! ({len(slots)} مورد)" if slots else "نوبت خالی یافت نشد"
+                    )
+                return {
+                    "ok": True,
+                    "user_name": user_name,
+                    "first_name": f_name,
+                    "last_name": l_name,
+                    "active_ticket": None,
+                    "slots": slots,
+                }
+            finally:
+                browser.close()
+
     def direct_book(
         self,
         personnel_code: str,
@@ -1030,6 +1024,7 @@ class FuelBotService:
         n_code = normalize_text(national_code)
         if not (p_code and n_code and station_url and chosen_time):
             raise ValueError("اطلاعات نوبت (کد پرسنلی، کد ملی، جایگاه و ساعت) کامل نیست.")
+        station_url = validate_station_url(station_url)
 
         with self._lock:
             headless = self.settings.headless
@@ -1069,78 +1064,6 @@ class FuelBotService:
                     "time": selected,
                     "ticket": ticket,
                     "message": self._booked_info or "انجام شد",
-                }
-            finally:
-                browser.close()
-
-
-    def direct_fetch(self, personnel_code: str, national_code: str) -> dict[str, Any]:
-        """Synchronously fetch user name, active ticket, or all open slots for Web Intermediary."""
-        p_code = normalize_text(personnel_code)
-        n_code = normalize_text(national_code)
-        if not p_code or not n_code:
-            raise ValueError("کد پرسنلی و کد ملی الزامی است.")
-
-        with self._lock:
-            headless = self.settings.headless
-
-        with sync_playwright() as p:
-            browser = launch_browser(p, headless)
-            try:
-                page = browser.new_page(viewport={"width": 1280, "height": 900})
-                self._login_with_credentials(page, p_code, n_code)
-                page.goto(BOOK_URL, wait_until="domcontentloaded")
-
-                h1 = page.locator("header.ui-page-head h1")
-                user_name = normalize_text(h1.first.inner_text()) if h1.count() > 0 else p_code
-                parts = user_name.split(" ", 1)
-                f_name = parts[0] if parts else ""
-                l_name = parts[1] if len(parts) > 1 else f_name
-
-                # Save/update user in profiles automatically
-                self.upsert_profile(p_code, n_code, f_name, l_name, label=user_name, activate=False)
-
-                active_ticket = self._extract_active_ticket(page)
-                if active_ticket:
-                    page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
-                    return {
-                        "ok": True,
-                        "user_name": user_name,
-                        "first_name": f_name,
-                        "last_name": l_name,
-                        "active_ticket": active_ticket,
-                        "slots": [],
-                    }
-
-                days = self._find_days(page, BotSettings())
-                slots: list[dict[str, Any]] = []
-                for day_href, day_label in days:
-                    full_day_url = day_href if day_href.startswith("http") else f"https://m7n.ir{day_href}"
-                    page.goto(full_day_url, wait_until="domcontentloaded")
-                    clean_day = self._extract_clean_day_label(page, day_label)
-                    stations = self._find_stations(page, BotSettings())
-                    for st_href, st_label in stations:
-                        full_st_url = st_href if st_href.startswith("http") else f"https://m7n.ir{st_href}"
-                        page.goto(full_st_url, wait_until="domcontentloaded")
-                        times = self._list_enabled_times(page)
-                        if times:
-                            slots.append(
-                                {
-                                    "day": clean_day,
-                                    "station": st_label,
-                                    "url": full_st_url,
-                                    "times": times,
-                                }
-                            )
-
-                page.screenshot(path=str(SCREENSHOT_PATH), full_page=True)
-                return {
-                    "ok": True,
-                    "user_name": user_name,
-                    "first_name": f_name,
-                    "last_name": l_name,
-                    "active_ticket": None,
-                    "slots": slots,
                 }
             finally:
                 browser.close()

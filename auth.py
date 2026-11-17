@@ -23,6 +23,21 @@ class AuthManager:
 
     def __init__(self) -> None:
         self._data: dict[str, Any] = self._load()
+        self._failed_attempts: dict[str, list[float]] = {}
+
+    def check_rate_limit(self, key: str, max_attempts: int = 5, window_sec: int = 60) -> None:
+        """Raise ValueError if too many failed login attempts occurred recently."""
+        now = time.time()
+        recent = [t for t in self._failed_attempts.get(key, []) if now - t < window_sec]
+        self._failed_attempts[key] = recent
+        if len(recent) >= max_attempts:
+            raise ValueError("تعداد تلاش‌های ناموفق زیاد است. لطفاً ۶۰ ثانیه دیگر امتحان کنید.")
+
+    def record_failure(self, key: str) -> None:
+        self._failed_attempts.setdefault(key, []).append(time.time())
+
+    def clear_failures(self, key: str) -> None:
+        self._failed_attempts.pop(key, None)
 
     def _load(self) -> dict[str, Any]:
         if AUTH_FILE.exists():

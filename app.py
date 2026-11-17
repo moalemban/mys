@@ -8,6 +8,7 @@ from typing import Any
 
 import uvicorn
 from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 
 from auth import AuthManager
@@ -33,6 +34,19 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="پنل هوشمند نوبت‌دهی سوخت", lifespan=lifespan)
 
+allowed_origins = [
+    o.strip()
+    for o in os.getenv("ALLOWED_ORIGINS", "https://mys-sigma.vercel.app").split(",")
+    if o.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 PUBLIC_PATHS = {"/login", "/miniapp", "/api/auth/login", "/manifest.json", "/sw.js", "/api/bot/avatar"}
 
 
@@ -40,7 +54,10 @@ PUBLIC_PATHS = {"/login", "/miniapp", "/api/auth/login", "/manifest.json", "/sw.
 async def require_auth(request: Request, call_next):
     path = request.url.path
     if path in PUBLIC_PATHS:
-        return await call_next(request)
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        return response
 
     token = request.cookies.get(SESSION_COOKIE)
     user = auth.verify_session_token(token)
@@ -50,7 +67,12 @@ async def require_auth(request: Request, call_next):
         return RedirectResponse(url="/login", status_code=302)
 
     request.state.user = user
-    return await call_next(request)
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    if path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -59,10 +81,18 @@ def login_page() -> str:
 
 
 @app.post("/api/auth/login")
-def api_login(payload: dict[str, Any] = Body(...)):
+def api_login(request: Request, payload: dict[str, Any] = Body(...)):
+    client_ip = request.client.host if request.client else "unknown"
+    try:
+        auth.check_rate_limit(client_ip)
+    except ValueError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
+
     user = auth.authenticate(payload.get("username", ""), payload.get("password", ""))
     if not user:
+        auth.record_failure(client_ip)
         raise HTTPException(status_code=401, detail="نام کاربری یا رمز عبور اشتباه است.")
+    auth.clear_failures(client_ip)
     token = auth.create_session_token(user["username"], user["role"])
     resp = JSONResponse({"ok": True, "user": user})
     resp.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=86400 * 7)

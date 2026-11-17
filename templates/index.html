@@ -393,6 +393,12 @@
   <script>
     let formLoaded = false;
 
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
     function showToast(msg) {
       const el = document.getElementById('toast');
       el.textContent = msg;
@@ -721,11 +727,11 @@
         if (d.available_slots && d.available_slots.length > 0) {
           slotsBox.innerHTML = d.available_slots.map(s => `
             <div class="slot-item">
-              <div><strong>${s.day}</strong> — ${s.station}</div>
+              <div><strong>${esc(s.day)}</strong> — ${esc(s.station)}</div>
               <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
-                ${s.times.map(t => `<button class="btn-start" style="padding:4px 8px; font-size:0.78rem;" onclick="bookSpecificTime('${t}', '${s.url}')">ثبت ${t}</button>`).join('')}
+                ${s.times.map(t => `<button class="btn-start" style="padding:4px 8px; font-size:0.78rem;" data-time="${esc(t)}" data-url="${esc(s.url)}" onclick="bookSpecificTime(this.dataset.time, this.dataset.url)">ثبت ${esc(t)}</button>`).join('')}
               </div>
-              <div style="margin-top:6px;"><a href="${s.url}" target="_blank">باز کردن صفحه رزرو ↗</a></div>
+              <div style="margin-top:6px;"><a href="${esc(s.url)}" target="_blank">باز کردن صفحه رزرو ↗</a></div>
             </div>
           `).join('');
         } else {

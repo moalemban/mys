@@ -241,6 +241,12 @@
     }
     let state = null;
 
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
     function showToast(msg) {
       const el = document.getElementById('toast');
       el.textContent = msg;
@@ -313,20 +319,20 @@
       const d = await res.json();
       if (!res.ok) { box.innerHTML = `<div class="card">❌ ${d.detail}</div>`; return; }
       if (d.active_ticket) {
-        const rows = Object.entries(d.active_ticket).map(([k,v]) => `<div><strong>${k}:</strong> ${v}</div>`).join('');
-        box.innerHTML = `<div class="card"><strong>🎫 نوبت فعال (${d.user_name}):</strong>${rows}<button class="btn btn-danger" onclick="cancelActive()">🗑 لغو نوبت</button></div>`;
+        const rows = Object.entries(d.active_ticket).map(([k,v]) => `<div><strong>${esc(k)}:</strong> ${esc(v)}</div>`).join('');
+        box.innerHTML = `<div class="card"><strong>🎫 نوبت فعال (${esc(d.user_name)}):</strong>${rows}<button class="btn btn-danger" onclick="cancelActive()">🗑 لغو نوبت</button></div>`;
         return;
       }
       if (!d.slots.length) {
-        box.innerHTML = `<div class="card">نوبت خالی برای ${d.user_name} باز نیست.</div>`;
+        box.innerHTML = `<div class="card">نوبت خالی برای ${esc(d.user_name)} باز نیست.</div>`;
         return;
       }
       box.innerHTML = d.slots.map(s => `
         <div class="station-card">
-          <div><strong>⛽ ${s.station}</strong></div>
-          <div style="font-size:0.8rem; color:var(--muted);">📅 ${s.day} (${s.times.length} ساعت خالی)</div>
+          <div><strong>⛽ ${esc(s.station)}</strong></div>
+          <div style="font-size:0.8rem; color:var(--muted);">📅 ${esc(s.day)} (${s.times.length} ساعت خالی)</div>
           <div class="times-grid">
-            ${s.times.map(t => `<button class="tbtn" onclick="bookOne('${s.url}', '${t}')">${t}</button>`).join('')}
+            ${s.times.map(t => `<button class="tbtn" data-url="${esc(s.url)}" data-time="${esc(t)}" onclick="bookOne(this.dataset.url, this.dataset.time)">${esc(t)}</button>`).join('')}
           </div>
         </div>
       `).join('');
@@ -461,6 +467,18 @@
         document.getElementById('b_min').value = state.settings.min_time || '14:00';
         document.getElementById('b_max').value = state.settings.max_time || '16:30';
         document.getElementById('b_fb').value = state.settings.fallback_max_time || '17:00';
+      }
+
+      if (state.available_slots && state.available_slots.length > 0 && !document.getElementById('m_result').innerHTML.trim()) {
+        document.getElementById('m_result').innerHTML = state.available_slots.map(s => `
+          <div class="station-card">
+            <div><strong>⛽ ${esc(s.station)}</strong></div>
+            <div style="font-size:0.8rem; color:var(--muted);">📅 ${esc(s.day)} (${s.times.length} ساعت خالی)</div>
+            <div class="times-grid">
+              ${s.times.map(t => `<button class="tbtn" data-url="${esc(s.url)}" data-time="${esc(t)}" onclick="bookOne(this.dataset.url, this.dataset.time)">${esc(t)}</button>`).join('')}
+            </div>
+          </div>
+        `).join('');
       }
 
       const grpIds = state.settings.group_profile_ids || [];
