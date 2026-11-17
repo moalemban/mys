@@ -1,0 +1,9 @@
+.venv/
+.env
+config.json
+auth_users.json
+exports/
+__pycache__/
+*.png
+!bot_avatar.png
+*.log

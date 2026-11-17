@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#12306b" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>پنل هوشمند نوبت‌دهی سوخت</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --card-2: #0b1220;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --primary: #3b82f6;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+    * { box-sizing: border-box; font-family: Tahoma, "Segoe UI", system-ui, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.6; }
+    .container { max-width: 1120px; margin: 0 auto; padding: 20px; }
+    header {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border);
+    }
+    h1 { margin: 0; font-size: 1.35rem; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+      border-radius: 999px; font-size: 0.85rem; font-weight: bold;
+    }
+    .badge.running { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid #10b981; }
+    .badge.stopped { background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid #ef4444; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    }
+    .card h2 { margin: 0 0 14px 0; font-size: 1.05rem; color: #e2e8f0; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    button {
+      border: none; border-radius: 10px; padding: 10px 16px; cursor: pointer;
+      font-size: 0.9rem; font-weight: bold; color: #fff; transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.9; }
+    .btn-start { background: var(--success); }
+    .btn-stop { background: var(--danger); }
+    .btn-check { background: var(--primary); }
+    .btn-save { background: #6366f1; width: 100%; margin-top: 10px; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.88rem; }
+    .stat-box { background: var(--card-2); padding: 10px; border-radius: 10px; border: 1px solid var(--border); }
+    .stat-label { color: var(--muted); font-size: 0.78rem; }
+    .stat-val { font-weight: bold; margin-top: 2px; }
+    label { display: block; font-size: 0.82rem; color: var(--muted); margin-top: 10px; margin-bottom: 4px; }
+    input, select {
+      width: 100%; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card-2); color: var(--text); font-size: 0.88rem;
+    }
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .check-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 0.88rem; }
+    .check-row input { width: auto; }
+    .logs {
+      background: #020617; border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px; height: 260px; overflow-y: auto; font-family: Consolas, monospace;
+      font-size: 0.8rem; direction: ltr; text-align: left; color: #cbd5e1; white-space: pre-wrap;
+    }
+    .slot-item {
+      background: rgba(16, 185, 129, 0.12); border: 1px solid #10b981;
+      padding: 10px; border-radius: 10px; margin-bottom: 8px; font-size: 0.86rem;
+    }
+    .slot-item a { color: #60a5fa; text-decoration: none; }
+    .toast {
+      position: fixed; bottom: 20px; left: 20px; background: #10b981; color: #fff;
+      padding: 10px 16px; border-radius: 10px; display: none; font-size: 0.9rem; z-index: 99;
+    }
+    img.preview { width: 100%; border-radius: 10px; border: 1px solid var(--border); margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>⛽ پنل هوشمند ربات نوبت‌دهی سوخت (m7n.ir/fuel)</h1>
+        <div style="color: var(--muted); font-size: 0.85rem;">وب واسطه رزرو مستقیم + پایش خودکار + پیام‌رسان‌ها + <a href="/miniapp" style="color:#60a5fa;">نسخه مینی‌اپ 📱</a></div>
+      </div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <div id="statusBadge" class="badge stopped">متوقف</div>
+        <button type="button" class="btn-stop" style="padding:6px 12px; font-size:0.82rem;" onclick="doLogout()">🚪 خروج</button>
+      </div>
+    </header>
+
+    <div class="card" style="margin-bottom: 16px; border-color: #3b82f6;">
+      <h2>🌐 رزرو مستقیم نوبت از طریق وب واسطه</h2>
+      <div class="row-2">
+        <div>
+          <label>انتخاب سریع از کاربران ذخیره‌شده</label>
+          <select id="w_profile_select" onchange="onSelectDirectProfile()">
+            <option value="">-- کاربر جدید وارد می‌کنم --</option>
+          </select>
+        </div>
+        <div>
+          <label>میزان سوخت (پیش‌فرض ۴۰ لیتر)</label>
+          <select id="w_fuel">
+            <option value="20">۲۰ لیتر</option>
+            <option value="40" selected>۴۰ لیتر</option>
+            <option value="60">۶۰ لیتر</option>
+          </select>
+        </div>
+      </div>
+      <div class="row-2">
+        <div>
+          <label>کد پرسنلی</label>
+          <input type="text" id="w_p_code" placeholder="مثلاً 47625126" />
+        </div>
+        <div>
+          <label>کد ملی</label>
+          <input type="text" id="w_n_code" placeholder="۱۰ رقم بدون خط تیره" />
+        </div>
+      </div>
+      <div class="row-2" style="margin-top:4px;">
+        <div>
+          <label>تحویل‌گیرنده (خالی = خود کاربر)</label>
+          <input type="text" id="w_f_name" placeholder="نام (اختیاری)" />
+        </div>
+        <div>
+          <label>نام خانوادگی تحویل‌گیرنده (اختیاری)</label>
+          <input type="text" id="w_l_name" placeholder="نام خانوادگی (اختیاری)" />
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:12px;">
+        <button type="button" class="btn-check" onclick="directFetch()">🔍 استعلام نوبت‌های خالی</button>
+        <label class="check-row" style="margin-top:0;"><input type="checkbox" id="w_dry_run" /> حالت تست (بدون ثبت نهایی)</label>
+      </div>
+      <div id="directResult" style="font-size:0.88rem; color:var(--muted);">کد پرسنلی و کد ملی را وارد کرده و «استعلام نوبت‌های خالی» را بزنید.</div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>کنترل و وضعیت لحظه‌ای</h2>
+        <div class="btn-row">
+          <button class="btn-start" onclick="apiPost('/api/start')">▶️ شروع پایش</button>
+          <button class="btn-stop" onclick="apiPost('/api/stop')">⏹ توقف</button>
+          <button class="btn-check" onclick="apiPost('/api/check-now')">🔍 بررسی فوری</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat-box">
+            <div class="stat-label">حالت عملکرد</div>
+            <div class="stat-val" id="statMode">-</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">تعداد بررسی</div>
+            <div class="stat-val" id="statAttempts">0</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">آخرین بررسی</div>
+            <div class="stat-val" id="statTime">-</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">آخرین وضعیت</div>
+            <div class="stat-val" id="statStatus">-</div>
+          </div>
+        </div>
+
+        <div id="nextScheduleBanner" style="display:none; margin-top:10px; padding:10px; border-radius:10px; background:rgba(59,130,246,0.14); border:1px solid #3b82f6; font-size:0.86rem;"></div>
+
+        <div id="pendingBox" style="display:none; margin-top: 14px; background: rgba(245, 158, 11, 0.14); border: 1px solid #f59e0b; border-radius: 10px; padding: 12px;">
+          <div style="font-weight:bold; color:#fbbf24; margin-bottom:6px;">⏰ نوبت بعد از ساعت مجاز پیدا شد — نیاز به تأیید شما</div>
+          <div id="pendingText" style="font-size:0.86rem; margin-bottom:8px;"></div>
+          <div id="pendingButtons" class="btn-row" style="margin-bottom:0;"></div>
+        </div>
+
+        <h2 style="margin-top: 18px;">نوبت فعال شما</h2>
+        <div id="activeTicketBox" style="color: var(--muted); font-size: 0.85rem;">نوبت فعالی ثبت نشده است.</div>
+
+        <h2 style="margin-top: 18px;">نوبت‌های خالی کشف‌شده</h2>
+        <div class="btn-row" style="margin-bottom:8px;">
+          <a href="/api/export/excel" target="_blank" style="text-decoration:none;"><button type="button" class="btn-check" style="padding:6px 10px; font-size:0.8rem;">📊 دانلود اکسل</button></a>
+          <a href="/api/export/pdf" target="_blank" style="text-decoration:none;"><button type="button" class="btn-save" style="width:auto; margin-top:0; padding:6px 10px; font-size:0.8rem;">📄 دانلود PDF</button></a>
+        </div>
+        <div id="slotsBox" style="color: var(--muted); font-size: 0.85rem;">فعلاً نوبتی پیدا نشده است.</div>
+
+        <h2 style="margin-top: 18px;">کاربران ذخیره‌شده (انتخاب یا افزودن کاربر جدید)</h2>
+        <div id="profilesList" style="margin-bottom: 10px;"></div>
+        <div class="row-2">
+          <input type="text" id="new_p_code" placeholder="کد پرسنلی جدید" />
+          <input type="text" id="new_n_code" placeholder="کد ملی جدید (۱۰ رقم)" />
+        </div>
+        <div class="row-2" style="margin-top:6px;">
+          <input type="text" id="new_f_name" placeholder="نام (اختیاری - خوانده می‌شود)" />
+          <input type="text" id="new_l_name" placeholder="نام خانوادگی (اختیاری)" />
+        </div>
+        <button type="button" class="btn-check" style="width:100%; margin-top:8px;" onclick="addProfile()">➕ ذخیره و فعال‌سازی این کاربر</button>
+        <button type="button" class="btn-start" style="width:100%; margin-top:8px;" onclick="runGroupBooking()">👨‍👩‍👧‍👦 نوبت‌گیری گروهی برای کاربران تیک‌خورده</button>
+        <div id="groupBookResult" style="margin-top:8px; font-size:0.84rem;"></div>
+      </div>
+
+      <div class="card">
+        <h2>تنظیمات ربات</h2>
+        <form id="settingsForm" onsubmit="saveSettings(event)">
+          <div class="row-2">
+            <div>
+              <label>حالت ربات</label>
+              <select id="mode">
+                <option value="notify_only">🔔 فقط خبر بده (Notify Only)</option>
+                <option value="auto_book">⚡ ثبت خودکار (Auto Book)</option>
+              </select>
+            </div>
+            <div>
+              <label>بازه بررسی (ثانیه)</label>
+              <input type="number" id="poll_interval" min="2" step="0.5" />
+            </div>
+          </div>
+
+          <div class="row-2">
+            <div>
+              <label>کد پرسنلی</label>
+              <input type="text" id="personnel_code" />
+            </div>
+            <div>
+              <label>کد ملی ورود</label>
+              <input type="text" id="national_code" />
+            </div>
+          </div>
+
+          <div class="row-2">
+            <div>
+              <label>نام تحویل‌گیرنده</label>
+              <input type="text" id="recipient_first_name" />
+            </div>
+            <div>
+              <label>نام خانوادگی تحویل‌گیرنده</label>
+              <input type="text" id="recipient_last_name" />
+            </div>
+          </div>
+
+          <div class="row-2">
+            <div>
+              <label>میزان سوخت پیش‌فرض (لیتر)</label>
+              <select id="fuel_amount">
+                <option value="20">۲۰ لیتر</option>
+                <option value="40">۴۰ لیتر (پیش‌فرض)</option>
+                <option value="60">۶۰ لیتر</option>
+              </select>
+            </div>
+            <div>
+              <label>آدرس HTTPS مینی‌اپ (اختیاری برای تلگرام/سروش)</label>
+              <input type="text" id="mini_app_url" placeholder="https://your-domain/miniapp" />
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+            <div>
+              <label>شروع ساعت</label>
+              <input type="text" id="min_time" placeholder="14:00" />
+            </div>
+            <div>
+              <label>سقف اصلی</label>
+              <input type="text" id="max_time" placeholder="16:30" />
+            </div>
+            <div>
+              <label>سقف نهایی (اگر نبود)</label>
+              <input type="text" id="fallback_max_time" placeholder="17:00" />
+            </div>
+          </div>
+          <div>
+            <label>کد ملی تحویل‌گیرنده (پیش‌فرض همان کد ملی ورود)</label>
+            <input type="text" id="recipient_national_code" />
+          </div>
+
+          <div class="row-2">
+            <div>
+              <label>جایگاه دلخواه (با کاما، یا خالی = همه)</label>
+              <input type="text" id="preferred_stations" placeholder="مثلاً: الماس نودژ" />
+            </div>
+            <div>
+              <label>روز دلخواه (مثلاً 2026-11-21)</label>
+              <input type="text" id="preferred_days" placeholder="خالی = همه روزها" />
+            </div>
+          </div>
+
+          <div class="row-2">
+            <div>
+              <label>توکن ربات تلگرام (اختیاری)</label>
+              <input type="text" id="telegram_bot_token" placeholder="123456:ABC..." />
+            </div>
+            <div>
+              <label>Chat ID تلگرام</label>
+              <input type="text" id="telegram_chat_id" placeholder="عددی مثل 123456789" />
+            </div>
+          </div>
+
+          <div class="row-2">
+            <div>
+              <label>توکن ربات بله (Bale)</label>
+              <input type="text" id="bale_bot_token" placeholder="توکن ربات بله" />
+            </div>
+            <div>
+              <label>Chat ID بله</label>
+              <input type="text" id="bale_chat_id" placeholder="شناسه چت بله" />
+            </div>
+          </div>
+
+          <div class="row-2">
+            <div>
+              <label>توکن ربات روبیکا (Rubika)</label>
+              <input type="text" id="rubika_bot_token" placeholder="توکن ربات روبیکا" />
+            </div>
+            <div>
+              <label>Chat ID روبیکا</label>
+              <input type="text" id="rubika_chat_id" placeholder="شناسه چت روبیکا" />
+            </div>
+          </div>
+
+          <div class="row-2">
+            <div>
+              <label>توکن ربات سروش‌پلاس (Soroush+)</label>
+              <input type="text" id="soroush_bot_token" placeholder="توکن ربات سروش" />
+            </div>
+            <div>
+              <label>Chat ID سروش‌پلاس</label>
+              <input type="text" id="soroush_chat_id" placeholder="شناسه کاربر سروش" />
+            </div>
+          </div>
+
+          <div class="row-2">
+            <label class="check-row"><input type="checkbox" id="dry_run" /> حالت تست (بدون کلیک روی ثبت نهایی)</label>
+            <label class="check-row"><input type="checkbox" id="headless" /> اجرای مرورگر در پس‌زمینه (Headless)</label>
+          </div>
+          <label class="check-row"><input type="checkbox" id="auto_next_booking" /> 📅 رزرو خودکار نوبت بعدی در تاریخ مجاز اعلام‌شده توسط سایت</label>
+
+          <button type="submit" class="btn-save">💾 ذخیره تنظیمات</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top: 16px;">
+      <div class="card">
+        <h2>گزارش لحظه‌ای (Logs)</h2>
+        <div id="logsBox" class="logs"></div>
+      </div>
+      <div class="card">
+        <h2>آخرین اسکرین‌شات</h2>
+        <div id="screenshotWrap" style="color: var(--muted); font-size: 0.85rem;">هنوز اسکرین‌شاتی ثبت نشده است.</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <h2>🔐 مدیریت رمز عبور و پنل ادمین</h2>
+      <div class="row-2">
+        <div>
+          <label>تغییر رمز عبور من (حداقل ۴ کاراکتر)</label>
+          <input type="password" id="my_new_pass" placeholder="رمز جدید" />
+        </div>
+        <div style="display:flex; align-items:flex-end;">
+          <button type="button" class="btn-check" style="width:100%;" onclick="changePassword()">🔑 تغییر رمز عبور من</button>
+        </div>
+      </div>
+      <div id="adminSection" style="display:none; margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+        <h2 style="font-size:0.96rem;">مدیریت کاربران سامانه (ادمین)</h2>
+        <div id="adminUsersList" style="margin-bottom:10px;"></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+          <input type="text" id="adm_u" placeholder="نام کاربری جدید" />
+          <input type="password" id="adm_p" placeholder="رمز عبور" />
+          <select id="adm_r"><option value="user">کاربر عادی</option><option value="admin">ادمین</option></select>
+        </div>
+        <button type="button" class="btn-start" style="width:100%; margin-top:8px;" onclick="createAdminUser()">➕ افزودن کاربر جدید</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <h2>🎨 پروفایل رسمی ربات (آواتار، بیوگرافی و منوی دستورات)</h2>
+      <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center;">
+        <img src="/api/bot/avatar" alt="آواتار ربات" style="width:96px; height:96px; border-radius:20px; border:2px solid #3b82f6; object-fit:cover;" onerror="this.style.display='none'" />
+        <div style="flex:1; min-width:220px;">
+          <div style="font-weight:bold; font-size:1.02rem;">⛽ نوبت‌یار هوشمند سوخت</div>
+          <div style="font-size:0.84rem; color:var(--muted); margin-top:4px;">
+            پایش لحظه‌ای، اطلاع‌رسانی جایگاه‌به‌جایگاه، ثبت خودکار نوبت، رزرو گروهی، زمان‌بندی خودکار نوبت بعدی و خروجی اکسل/PDF
+          </div>
+          <div class="btn-row" style="margin-top:10px; margin-bottom:0;">
+            <button type="button" class="btn-check" onclick="syncBotProfile()">✨ اعمال خودکار پروفایل و دستورات روی تلگرام و بله</button>
+            <a href="/api/bot/avatar" download="bot_avatar.png" style="text-decoration:none;"><button type="button" class="btn-save" style="width:auto; margin-top:0;">⬇ دانلود آواتار ربات</button></a>
+          </div>
+          <div id="syncProfileRes" style="font-size:0.82rem; color:#34d399; margin-top:6px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    let formLoaded = false;
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 2800);
+    }
+
+    async function apiPost(url, body = null) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : null,
+      });
+      const data = await res.json();
+      showToast(data.message || 'انجام شد');
+      refreshStatus();
+    }
+
+    async function saveSettings(e) {
+      e.preventDefault();
+      const payload = {
+        mode: document.getElementById('mode').value,
+        poll_interval: parseFloat(document.getElementById('poll_interval').value || '5'),
+        personnel_code: document.getElementById('personnel_code').value,
+        national_code: document.getElementById('national_code').value,
+        recipient_first_name: document.getElementById('recipient_first_name').value,
+        recipient_last_name: document.getElementById('recipient_last_name').value,
+        recipient_national_code: document.getElementById('recipient_national_code').value,
+        fuel_amount: document.getElementById('fuel_amount').value,
+        min_time: document.getElementById('min_time').value,
+        max_time: document.getElementById('max_time').value,
+        fallback_max_time: document.getElementById('fallback_max_time').value,
+        mini_app_url: document.getElementById('mini_app_url').value,
+        preferred_stations: document.getElementById('preferred_stations').value,
+        preferred_days: document.getElementById('preferred_days').value,
+        telegram_bot_token: document.getElementById('telegram_bot_token').value,
+        telegram_chat_id: document.getElementById('telegram_chat_id').value,
+        bale_bot_token: document.getElementById('bale_bot_token').value,
+        bale_chat_id: document.getElementById('bale_chat_id').value,
+        rubika_bot_token: document.getElementById('rubika_bot_token').value,
+        rubika_chat_id: document.getElementById('rubika_chat_id').value,
+        soroush_bot_token: document.getElementById('soroush_bot_token').value,
+        soroush_chat_id: document.getElementById('soroush_chat_id').value,
+        dry_run: document.getElementById('dry_run').checked,
+        headless: document.getElementById('headless').checked,
+        auto_next_booking: document.getElementById('auto_next_booking').checked,
+      };
+      await apiPost('/api/settings', payload);
+    }
+
+    async function addProfile() {
+      const payload = {
+        personnel_code: document.getElementById('new_p_code').value.trim(),
+        national_code: document.getElementById('new_n_code').value.trim(),
+        first_name: document.getElementById('new_f_name').value.trim(),
+        last_name: document.getElementById('new_l_name').value.trim(),
+        activate: true,
+      };
+      if (!payload.personnel_code || !payload.national_code) {
+        showToast('کد پرسنلی و کد ملی را وارد کنید');
+        return;
+      }
+      await apiPost('/api/profiles', payload);
+      formLoaded = false;
+      document.getElementById('new_p_code').value = '';
+      document.getElementById('new_n_code').value = '';
+      document.getElementById('new_f_name').value = '';
+      document.getElementById('new_l_name').value = '';
+    }
+
+    async function selectProfile(id) {
+      await apiPost(`/api/profiles/${id}/select`);
+      formLoaded = false;
+    }
+
+    async function setScannerProfile(id) {
+      await apiPost('/api/settings', { scanner_profile_id: id });
+      formLoaded = false;
+    }
+
+    async function deleteProfile(id) {
+      await fetch(`/api/profiles/${id}`, { method: 'DELETE' });
+      showToast('پروفایل حذف شد');
+      formLoaded = false;
+      refreshStatus();
+    }
+
+    async function runGroupBooking() {
+      const box = document.getElementById('groupBookResult');
+      box.innerHTML = '⏳ در حال اجرای نوبت‌گیری گروهی...';
+      const res = await fetch('/api/group/book', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+      const d = await res.json();
+      if (!res.ok) { box.innerHTML = `<span style="color:#f87171;">❌ ${d.detail}</span>`; return; }
+      box.innerHTML = d.results.map(r => `<div class="slot-item"><strong>${r.user}</strong>: ${r.message}</div>`).join('');
+      refreshStatus();
+    }
+
+    async function bookSpecificTime(time, url) {
+      await apiPost('/api/confirm-late', { time, url });
+    }
+
+    let cachedProfiles = [];
+    function onSelectDirectProfile() {
+      const id = document.getElementById('w_profile_select').value;
+      const p = cachedProfiles.find(x => x.id === id);
+      if (p) {
+        document.getElementById('w_p_code').value = p.personnel_code || '';
+        document.getElementById('w_n_code').value = p.national_code || '';
+        document.getElementById('w_f_name').value = p.first_name || '';
+        document.getElementById('w_l_name').value = p.last_name || '';
+      }
+    }
+
+    async function directFetch() {
+      const box = document.getElementById('directResult');
+      const p_code = document.getElementById('w_p_code').value.trim();
+      const n_code = document.getElementById('w_n_code').value.trim();
+      if (!p_code || !n_code) { showToast('کد پرسنلی و کد ملی را وارد کنید'); return; }
+      box.innerHTML = '⏳ در حال اتصال به سامانه سوخت و استعلام...';
+      try {
+        const res = await fetch('/api/direct/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ personnel_code: p_code, national_code: n_code }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.detail || 'خطا در استعلام');
+        if (d.first_name && !document.getElementById('w_f_name').value) document.getElementById('w_f_name').value = d.first_name;
+        if (d.last_name && !document.getElementById('w_l_name').value) document.getElementById('w_l_name').value = d.last_name;
+
+        if (d.active_ticket) {
+          const rows = Object.entries(d.active_ticket).map(([k,v]) => `<div><strong>${k}:</strong> ${v}</div>`).join('');
+          box.innerHTML = `<div class="slot-item" style="border-color:#f59e0b; background:rgba(245,158,11,0.12);"><div><strong>👤 ${d.user_name} — دارای نوبت فعال:</strong></div>${rows}<button type="button" class="btn-stop" style="margin-top:8px; padding:6px 12px; font-size:0.84rem;" onclick="directCancel(true)">🗑 لغو این نوبت</button></div>`;
+          return;
+        }
+        if (!d.slots || d.slots.length === 0) {
+          box.innerHTML = `<div>👤 ${d.user_name} — در حال حاضر هیچ نوبت خالی روی سایت باز نیست.</div>`;
+          return;
+        }
+        box.innerHTML = `<div style="margin-bottom:8px;"><strong>👤 ${d.user_name}</strong> — روی ساعت مورد نظر کلیک کنید تا ثبت شود:</div>` +
+          d.slots.map(s => `
+            <div class="slot-item">
+              <div><strong>${s.day}</strong> — ${s.station}</div>
+              <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
+                ${s.times.map(t => `<button type="button" class="btn-start" style="padding:5px 10px; font-size:0.82rem;" onclick="directBook('${s.url}', '${t}')">⚡ ثبت ${t}</button>`).join('')}
+              </div>
+            </div>
+          `).join('');
+      } catch (err) {
+        box.innerHTML = `<span style="color:#f87171;">❌ ${err.message}</span>`;
+      }
+    }
+
+    async function directBook(stationUrl, time) {
+      const box = document.getElementById('directResult');
+      const payload = {
+        personnel_code: document.getElementById('w_p_code').value.trim(),
+        national_code: document.getElementById('w_n_code').value.trim(),
+        station_url: stationUrl,
+        time: time,
+        fuel_amount: document.getElementById('w_fuel').value,
+        first_name: document.getElementById('w_f_name').value.trim(),
+        last_name: document.getElementById('w_l_name').value.trim(),
+        dry_run: document.getElementById('w_dry_run').checked,
+      };
+      box.innerHTML = `⏳ در حال ثبت ساعت ${time}...`;
+      try {
+        const res = await fetch('/api/direct/book', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.detail || 'خطا در ثبت');
+        box.innerHTML = `<div class="slot-item" style="white-space:pre-wrap;">${d.message}</div>`;
+        showToast('عملیات انجام شد');
+        refreshStatus();
+      } catch (err) {
+        box.innerHTML = `<span style="color:#f87171;">❌ ${err.message}</span>`;
+      }
+    }
+
+    async function directCancel(fromDirectForm = false) {
+      if (!confirm('آیا از لغو نوبت فعال مطمئن هستید؟ این کار قابل بازگشت نیست.')) return;
+      const payload = fromDirectForm
+        ? {
+            personnel_code: document.getElementById('w_p_code').value.trim(),
+            national_code: document.getElementById('w_n_code').value.trim(),
+          }
+        : {};
+      try {
+        const res = await fetch('/api/direct/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.detail || 'خطا در لغو نوبت');
+        showToast(d.message || 'نوبت لغو شد');
+        if (fromDirectForm) {
+          document.getElementById('directResult').innerHTML = `<div class="slot-item">${d.message}</div>`;
+        }
+        refreshStatus();
+      } catch (err) {
+        showToast('❌ ' + err.message);
+      }
+    }
+
+    function fillForm(s) {
+      document.getElementById('mode').value = s.mode;
+      document.getElementById('poll_interval').value = s.poll_interval;
+      document.getElementById('personnel_code').value = s.personnel_code || '';
+      document.getElementById('national_code').value = s.national_code || '';
+      document.getElementById('recipient_first_name').value = s.recipient_first_name || '';
+      document.getElementById('recipient_last_name').value = s.recipient_last_name || '';
+      document.getElementById('recipient_national_code').value = s.recipient_national_code || '';
+      document.getElementById('fuel_amount').value = s.fuel_amount || '40';
+      document.getElementById('min_time').value = s.min_time || '14:00';
+      document.getElementById('max_time').value = s.max_time || '16:30';
+      document.getElementById('fallback_max_time').value = s.fallback_max_time || '17:00';
+      document.getElementById('mini_app_url').value = s.mini_app_url || '';
+      document.getElementById('preferred_stations').value = s.preferred_stations || '';
+      document.getElementById('preferred_days').value = s.preferred_days || '';
+      document.getElementById('telegram_bot_token').value = s.telegram_bot_token || '';
+      document.getElementById('telegram_chat_id').value = s.telegram_chat_id || '';
+      document.getElementById('bale_bot_token').value = s.bale_bot_token || '';
+      document.getElementById('bale_chat_id').value = s.bale_chat_id || '';
+      document.getElementById('rubika_bot_token').value = s.rubika_bot_token || '';
+      document.getElementById('rubika_chat_id').value = s.rubika_chat_id || '';
+      document.getElementById('soroush_bot_token').value = s.soroush_bot_token || '';
+      document.getElementById('soroush_chat_id').value = s.soroush_chat_id || '';
+      document.getElementById('dry_run').checked = !!s.dry_run;
+      document.getElementById('headless').checked = !!s.headless;
+      document.getElementById('auto_next_booking').checked = s.auto_next_booking !== false;
+    }
+
+    async function refreshStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const d = await res.json();
+
+        const badge = document.getElementById('statusBadge');
+        badge.textContent = d.running ? '🟢 در حال پایش' : '🔴 متوقف';
+        badge.className = 'badge ' + (d.running ? 'running' : 'stopped');
+
+        document.getElementById('statMode').textContent =
+          d.mode === 'notify_only' ? '🔔 فقط اطلاع‌رسانی' : '⚡ ثبت خودکار';
+        document.getElementById('statAttempts').textContent = d.attempt_count;
+        document.getElementById('statTime').textContent = d.last_check_at || '-';
+        document.getElementById('statStatus').textContent = d.last_status || '-';
+
+        const nextBanner = document.getElementById('nextScheduleBanner');
+        if (d.settings && d.settings.auto_next_booking && d.settings.next_eligible_jalali) {
+          nextBanner.style.display = 'block';
+          nextBanner.textContent = `📅 نوبت بعدی خودکار برای تاریخ ${d.settings.next_eligible_jalali} زمان‌بندی شده است.`;
+        } else {
+          nextBanner.style.display = 'none';
+        }
+
+        const pendingBox = document.getElementById('pendingBox');
+        if (d.pending_confirmation) {
+          const pc = d.pending_confirmation;
+          pendingBox.style.display = 'block';
+          document.getElementById('pendingText').textContent =
+            `${pc.day} — ${pc.station} | ساعت‌های باز: ${pc.times.join('، ')}`;
+          document.getElementById('pendingButtons').innerHTML =
+            pc.times.slice(0, 6).map(t =>
+              `<button class="btn-start" style="padding:6px 10px; font-size:0.82rem;" onclick="bookSpecificTime('${t}', '${pc.url}')">✅ ثبت ${t}</button>`
+            ).join('') +
+            `<button class="btn-stop" style="padding:6px 10px; font-size:0.82rem;" onclick="apiPost('/api/decline-late')">❌ منتظر بمان</button>`;
+        } else {
+          pendingBox.style.display = 'none';
+        }
+
+        const profilesList = document.getElementById('profilesList');
+        const profiles = (d.settings && d.settings.profiles) || [];
+        cachedProfiles = profiles;
+        const wSel = document.getElementById('w_profile_select');
+        if (wSel && wSel.options.length <= 1 && profiles.length > 0) {
+          profiles.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = `${p.label || p.personnel_code} (${p.personnel_code})`;
+            wSel.appendChild(opt);
+          });
+        }
+        const activeId = d.settings ? d.settings.active_profile_id : '';
+        const scannerId = d.settings ? d.settings.scanner_profile_id : '';
+        if (profiles.length > 0) {
+          const grpIds = (d.settings && d.settings.group_profile_ids) || [];
+          profilesList.innerHTML = profiles.map(p => `
+            <div class="stat-box" style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" style="width:auto;" title="انتخاب برای رزرو گروهی" ${grpIds.includes(p.id) ? 'checked' : ''} onchange="apiPost('/api/group/toggle/${p.id}')" />
+                <div>
+                  <strong>${p.label || p.personnel_code}</strong>
+                  <div style="font-size:0.76rem; color:var(--muted);">پرسنلی: ${p.personnel_code} | ملی: ${p.national_code}</div>
+                </div>
+              </div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                ${p.id === activeId
+                  ? '<span style="color:#34d399; font-size:0.8rem; font-weight:bold;">✅ فعال</span>'
+                  : `<button class="btn-check" style="padding:4px 8px; font-size:0.78rem;" onclick="selectProfile('${p.id}')">انتخاب</button>`}
+                ${p.id === scannerId
+                  ? '<span style="color:#60a5fa; font-size:0.76rem;">🔍 اسکنر</span>'
+                  : `<button class="btn-save" style="width:auto; margin-top:0; padding:4px 8px; font-size:0.76rem;" onclick="setScannerProfile('${p.id}')">تنظیم اسکنر</button>`}
+                <button class="btn-stop" style="padding:4px 8px; font-size:0.78rem;" onclick="deleteProfile('${p.id}')">حذف</button>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          profilesList.innerHTML = '<div style="color:var(--muted); font-size:0.82rem;">کاربری ذخیره نشده است.</div>';
+        }
+
+        const ticketBox = document.getElementById('activeTicketBox');
+        if (d.active_ticket) {
+          const entries = Object.entries(d.active_ticket)
+            .map(([k, v]) => `<div><strong>${k}:</strong> ${v}</div>`)
+            .join('');
+          ticketBox.innerHTML = `<div class="slot-item">${entries}<button type="button" class="btn-stop" style="margin-top:8px; padding:6px 12px; font-size:0.84rem;" onclick="directCancel(false)">🗑 لغو نوبت</button></div>`;
+        } else {
+          ticketBox.textContent = 'نوبت فعالی ثبت نشده است.';
+        }
+
+        const slotsBox = document.getElementById('slotsBox');
+        if (d.available_slots && d.available_slots.length > 0) {
+          slotsBox.innerHTML = d.available_slots.map(s => `
+            <div class="slot-item">
+              <div><strong>${s.day}</strong> — ${s.station}</div>
+              <div style="margin-top:6px; display:flex; flex-wrap:wrap; gap:6px;">
+                ${s.times.map(t => `<button class="btn-start" style="padding:4px 8px; font-size:0.78rem;" onclick="bookSpecificTime('${t}', '${s.url}')">ثبت ${t}</button>`).join('')}
+              </div>
+              <div style="margin-top:6px;"><a href="${s.url}" target="_blank">باز کردن صفحه رزرو ↗</a></div>
+            </div>
+          `).join('');
+        } else {
+          slotsBox.textContent = 'فعلاً نوبت خالی مطابق فیلترها پیدا نشده است.';
+        }
+
+        const logsBox = document.getElementById('logsBox');
+        logsBox.textContent = (d.logs || []).join('\n');
+        logsBox.scrollTop = logsBox.scrollHeight;
+
+        if (d.has_screenshot) {
+          document.getElementById('screenshotWrap').innerHTML =
+            `<img class="preview" src="/api/screenshot?t=${Date.now()}" alt="screenshot" />`;
+        }
+
+        if (!formLoaded && d.settings) {
+          fillForm(d.settings);
+          formLoaded = true;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function syncBotProfile() {
+      const box = document.getElementById('syncProfileRes');
+      box.textContent = '⏳ در حال اعمال پروفایل روی ربات...';
+      const res = await fetch('/api/bot/sync-profile', { method: 'POST' });
+      const d = await res.json();
+      box.textContent = Object.entries(d.results || {}).map(([k,v]) => `${k}: ${v}`).join(' | ');
+    }
+
+    async function doLogout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    async function changePassword(targetUser = '') {
+      const pass = targetUser ? prompt(`رمز جدید برای ${targetUser}:`) : document.getElementById('my_new_pass').value;
+      if (!pass) return;
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: targetUser, new_password: pass }),
+      });
+      const d = await res.json();
+      showToast(res.ok ? d.message : '❌ ' + d.detail);
+      if (!targetUser) document.getElementById('my_new_pass').value = '';
+    }
+
+    async function loadAdminUsers() {
+      const meRes = await fetch('/api/auth/me');
+      if (!meRes.ok) return;
+      const me = (await meRes.json()).user;
+      if (me.role !== 'admin') return;
+      document.getElementById('adminSection').style.display = 'block';
+      const uRes = await fetch('/api/admin/users');
+      const uData = await uRes.json();
+      document.getElementById('adminUsersList').innerHTML = uData.users.map(u => `
+        <div class="stat-box" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <div><strong>${u.username}</strong> (${u.role})</div>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="btn-check" style="padding:4px 8px; font-size:0.76rem;" onclick="changePassword('${u.username}')">تغییر رمز</button>
+            <button type="button" class="btn-stop" style="padding:4px 8px; font-size:0.76rem;" onclick="deleteAdminUser('${u.username}')">حذف</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function createAdminUser() {
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('adm_u').value.trim(),
+          password: document.getElementById('adm_p').value,
+          role: document.getElementById('adm_r').value,
+        }),
+      });
+      const d = await res.json();
+      showToast(res.ok ? d.message : '❌ ' + d.detail);
+      if (res.ok) {
+        document.getElementById('adm_u').value = '';
+        document.getElementById('adm_p').value = '';
+        loadAdminUsers();
+      }
+    }
+
+    async function deleteAdminUser(uname) {
+      if (!confirm(`کاربر ${uname} حذف شود؟`)) return;
+      const res = await fetch(`/api/admin/users/${uname}`, { method: 'DELETE' });
+      const d = await res.json();
+      showToast(res.ok ? d.message : '❌ ' + d.detail);
+      loadAdminUsers();
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+    loadAdminUsers();
+    refreshStatus();
+    setInterval(refreshStatus, 2500);
+  </script>
+</body>
+</html>

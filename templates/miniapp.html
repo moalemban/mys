@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0f172a" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>مینی‌اپ نوبت‌دهی سوخت</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: var(--tg-theme-bg-color, #0f172a);
+      --card: var(--tg-theme-secondary-bg-color, #1e293b);
+      --text: var(--tg-theme-text-color, #f8fafc);
+      --muted: var(--tg-theme-hint-color, #94a3b8);
+      --primary: var(--tg-theme-button-color, #3b82f6);
+      --border: #334155;
+      --success: #10b981;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; font-family: Tahoma, system-ui, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); padding-bottom: 76px; }
+    .wrap { max-width: 540px; margin: 0 auto; padding: 14px; }
+    .hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .hdr h1 { margin: 0; font-size: 1.1rem; }
+    .pill { font-size: 0.78rem; padding: 4px 10px; border-radius: 999px; background: rgba(59,130,246,0.2); color: #60a5fa; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+    .card h2 { margin: 0 0 10px 0; font-size: 0.98rem; }
+    label { display: block; font-size: 0.78rem; color: var(--muted); margin: 8px 0 4px; }
+    input, select { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: var(--text); font-size: 0.9rem; }
+    .btn { width: 100%; padding: 11px; border: none; border-radius: 10px; font-weight: bold; font-size: 0.92rem; color: #fff; cursor: pointer; margin-top: 10px; }
+    .btn-primary { background: var(--primary); }
+    .btn-success { background: var(--success); }
+    .btn-danger { background: var(--danger); }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .station-card { background: rgba(16,185,129,0.1); border: 1px solid var(--success); border-radius: 12px; padding: 12px; margin-top: 10px; }
+    .times-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .tbtn { border: none; border-radius: 8px; padding: 7px 11px; background: var(--success); color: #fff; font-weight: bold; font-size: 0.84rem; cursor: pointer; }
+    .user-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
+    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr 1fr; z-index: 50; }
+    .nav button { background: none; border: none; color: var(--muted); padding: 12px 6px; font-size: 0.82rem; font-weight: bold; cursor: pointer; }
+    .nav button.active { color: #60a5fa; border-top: 2px solid #60a5fa; }
+    .tab { display: none; }
+    .tab.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hdr">
+      <h1>⛽ مینی‌اپ نوبت سوخت</h1>
+      <span id="runPill" class="pill">آماده</span>
+    </div>
+
+    <!-- TAB 1: STATIONS & DIRECT BOOKING -->
+    <div id="tab-book" class="tab active">
+      <div class="card">
+        <h2>استعلام جایگاه‌به‌جایگاه</h2>
+        <select id="m_profile" onchange="pickUser()"></select>
+        <div class="row2">
+          <div><label>کد پرسنلی</label><input id="m_p" type="text" /></div>
+          <div><label>کد ملی</label><input id="m_n" type="text" /></div>
+        </div>
+        <div class="row2">
+          <div><label>سهمیه</label>
+            <select id="m_fuel"><option value="20">۲۰ لیتر</option><option value="40" selected>۴۰ لیتر</option><option value="60">۶۰ لیتر</option></select>
+          </div>
+          <div><label>حالت</label>
+            <select id="m_dry"><option value="false">ثبت واقعی</option><option value="true">حالت تست</option></select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="fetchStations()">🔍 نمایش جایگاه‌ها و ساعت‌های خالی</button>
+      </div>
+      <div id="m_result"></div>
+    </div>
+
+    <!-- TAB 2: GROUP BOOKING -->
+    <div id="tab-group" class="tab">
+      <div class="card">
+        <h2>👨‍👩‍👧‍👦 نوبت‌گیری گروهی خودکار</h2>
+        <div style="font-size:0.82rem; color:var(--muted); margin-bottom:10px;">
+          کاربران انتخاب‌شده را به ترتیب با بازه زمانی و سهمیه پیش‌فرض (۴۰ لیتر) نوبت‌گیری می‌کند:
+        </div>
+        <div id="groupUsers"></div>
+        <button class="btn btn-success" onclick="runGroupBook()">🚀 شروع نوبت‌گیری گروهی</button>
+      </div>
+      <div id="groupResult"></div>
+    </div>
+
+    <!-- TAB 3: BOT & TIME RANGE -->
+    <div id="tab-bot" class="tab">
+      <div class="card">
+        <h2>🤖 پایش خودکار و بازه زمانی</h2>
+        <div class="row2">
+          <button class="btn btn-success" onclick="postApi('/api/start')">▶️ شروع پایش</button>
+          <button class="btn btn-danger" onclick="postApi('/api/stop')">⏹ توقف</button>
+        </div>
+        <label>بازه زمانی ثبت خودکار (شروع / پایان اصلی / نهایتاً)</label>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;">
+          <input id="b_min" type="text" placeholder="14:00" />
+          <input id="b_max" type="text" placeholder="16:30" />
+          <input id="b_fb" type="text" placeholder="17:00" />
+        </div>
+        <button class="btn btn-primary" onclick="saveRange()">💾 ذخیره بازه زمانی</button>
+        <div id="m_logs" style="margin-top:10px; font-size:0.76rem; color:var(--muted); max-height:200px; overflow-y:auto; direction:ltr;"></div>
+      </div>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <button class="active" onclick="switchTab('book', this)">⛽ جایگاه‌ها</button>
+    <button onclick="switchTab('group', this)">👨‍👩‍👧‍👦 گروهی</button>
+    <button onclick="switchTab('bot', this)">🤖 ربات</button>
+  </nav>
+
+  <script>
+    if (window.Telegram && window.Telegram.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+    }
+    let state = null;
+
+    function switchTab(name, btn) {
+      document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav button').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + name).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    async function postApi(url, body = null) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : null,
+      });
+      const d = await res.json();
+      loadState();
+      return d;
+    }
+
+    function pickUser() {
+      const id = document.getElementById('m_profile').value;
+      const p = (state.settings.profiles || []).find(x => x.id === id);
+      if (p) {
+        document.getElementById('m_p').value = p.personnel_code;
+        document.getElementById('m_n').value = p.national_code;
+      }
+    }
+
+    async function fetchStations() {
+      const box = document.getElementById('m_result');
+      box.innerHTML = '<div class="card">⏳ در حال استعلام جایگاه‌ها...</div>';
+      const res = await fetch('/api/direct/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personnel_code: document.getElementById('m_p').value.trim(),
+          national_code: document.getElementById('m_n').value.trim(),
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) { box.innerHTML = `<div class="card">❌ ${d.detail}</div>`; return; }
+      if (d.active_ticket) {
+        const rows = Object.entries(d.active_ticket).map(([k,v]) => `<div><strong>${k}:</strong> ${v}</div>`).join('');
+        box.innerHTML = `<div class="card"><strong>🎫 نوبت فعال (${d.user_name}):</strong>${rows}<button class="btn btn-danger" onclick="cancelActive()">🗑 لغو نوبت</button></div>`;
+        return;
+      }
+      if (!d.slots.length) {
+        box.innerHTML = `<div class="card">نوبت خالی برای ${d.user_name} باز نیست.</div>`;
+        return;
+      }
+      box.innerHTML = d.slots.map(s => `
+        <div class="station-card">
+          <div><strong>⛽ ${s.station}</strong></div>
+          <div style="font-size:0.82rem; color:var(--muted);">📅 ${s.day} (${s.times.length} ساعت خالی)</div>
+          <div class="times-grid">
+            ${s.times.map(t => `<button class="tbtn" onclick="bookOne('${s.url}', '${t}')">${t}</button>`).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function bookOne(url, time) {
+      const box = document.getElementById('m_result');
+      box.innerHTML = `<div class="card">⏳ در حال ثبت ساعت ${time}...</div>`;
+      const res = await fetch('/api/direct/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personnel_code: document.getElementById('m_p').value.trim(),
+          national_code: document.getElementById('m_n').value.trim(),
+          station_url: url,
+          time: time,
+          fuel_amount: document.getElementById('m_fuel').value,
+          dry_run: document.getElementById('m_dry').value === 'true',
+        }),
+      });
+      const d = await res.json();
+      box.innerHTML = `<div class="card" style="white-space:pre-wrap;">${res.ok ? d.message : '❌ ' + d.detail}</div>`;
+    }
+
+    async function cancelActive() {
+      if (!confirm('نوبت فعال لغو شود؟')) return;
+      const d = await postApi('/api/direct/cancel', {
+        personnel_code: document.getElementById('m_p').value.trim(),
+        national_code: document.getElementById('m_n').value.trim(),
+      });
+      document.getElementById('m_result').innerHTML = `<div class="card">${d.message}</div>`;
+    }
+
+    async function runGroupBook() {
+      const box = document.getElementById('groupResult');
+      box.innerHTML = '<div class="card">⏳ در حال نوبت‌گیری گروهی...</div>';
+      const res = await fetch('/api/group/book', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}' });
+      const d = await res.json();
+      if (!res.ok) { box.innerHTML = `<div class="card">❌ ${d.detail}</div>`; return; }
+      box.innerHTML = d.results.map(r => `<div class="card"><strong>${r.user}</strong> (${r.personnel_code})<br/>${r.message}</div>`).join('');
+    }
+
+    async function saveRange() {
+      await postApi('/api/settings', {
+        min_time: document.getElementById('b_min').value.trim(),
+        max_time: document.getElementById('b_max').value.trim(),
+        fallback_max_time: document.getElementById('b_fb').value.trim(),
+      });
+    }
+
+    async function loadState() {
+      const res = await fetch('/api/status');
+      state = await res.json();
+      document.getElementById('runPill').textContent = state.running ? '🟢 در حال پایش' : '🔴 متوقف';
+      document.getElementById('m_logs').innerText = (state.logs || []).slice(-12).join('\n');
+
+      const profiles = state.settings.profiles || [];
+      const sel = document.getElementById('m_profile');
+      if (sel.options.length === 0 && profiles.length > 0) {
+        profiles.forEach(p => {
+          const o = document.createElement('option');
+          o.value = p.id;
+          o.textContent = `${p.label || p.personnel_code} (${p.personnel_code})`;
+          sel.appendChild(o);
+        });
+        pickUser();
+      }
+      if (!document.getElementById('b_min').value) {
+        document.getElementById('b_min').value = state.settings.min_time || '14:00';
+        document.getElementById('b_max').value = state.settings.max_time || '16:30';
+        document.getElementById('b_fb').value = state.settings.fallback_max_time || '17:00';
+      }
+
+      const grpIds = state.settings.group_profile_ids || [];
+      document.getElementById('groupUsers').innerHTML = profiles.map(p => `
+        <div class="user-row">
+          <div><strong>${p.label || p.personnel_code}</strong> (${p.personnel_code})</div>
+          <input type="checkbox" style="width:auto;" ${grpIds.includes(p.id) ? 'checked' : ''} onchange="postApi('/api/group/toggle/${p.id}')" />
+        </div>
+      `).join('');
+    }
+
+    loadState();
+    setInterval(loadState, 3000);
+  </script>
+</body>
+</html>
