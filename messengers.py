@@ -29,14 +29,18 @@ def _telegram_reply_keyboard() -> dict[str, Any]:
     }
 
 
-def _to_tg_inline(rows: list[list[tuple[str, str]]]) -> dict[str, Any]:
-    """Convert [(text, callback_data_or_webapp)] rows to Telegram/Bale inline_keyboard."""
+def _to_tg_inline(rows: list[list[tuple[str, str]]], allow_webapp: bool = True) -> dict[str, Any]:
+    """Convert [(text, callback_data_or_webapp)] rows to Telegram/Bale/Soroush+ inline_keyboard."""
     kb = []
     for row in rows:
         btns = []
         for label, cb in row:
             if cb.startswith("webapp:"):
-                btns.append({"text": label, "web_app": {"url": cb.split(":", 1)[1]}})
+                u = cb.split(":", 1)[1]
+                if allow_webapp:
+                    btns.append({"text": label, "web_app": {"url": u}})
+                else:
+                    btns.append({"text": label, "url": u})
             elif cb.startswith("url:"):
                 btns.append({"text": label, "url": cb.split(":", 1)[1]})
             else:
@@ -656,14 +660,18 @@ class MultiMessengerHub:
         with_reply_kb: bool = False,
     ) -> None:
         payload: dict[str, Any] = {"chat_id": chat_id, "text": text}
+        allow_webapp = "api.telegram.org" in base_host
         if inline_rows:
-            payload["reply_markup"] = _to_tg_inline(inline_rows)
+            payload["reply_markup"] = _to_tg_inline(inline_rows, allow_webapp=allow_webapp)
         elif with_reply_kb:
             payload["reply_markup"] = _telegram_reply_keyboard()
         try:
             _http_json(f"{base_host}/bot{token}/sendMessage", payload, timeout=15)
             if image_path and image_path.exists():
                 _http_multipart_photo(f"{base_host}/bot{token}/sendPhoto", chat_id, image_path)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="ignore")
+            self.service.log(f"خطای ارسال پیام ({base_host}): {exc} -> {detail}")
         except Exception as exc:
             self.service.log(f"خطای ارسال پیام ({base_host}): {exc}")
 
@@ -678,7 +686,7 @@ class MultiMessengerHub:
     ) -> None:
         payload: dict[str, Any] = {"chat_id": chat_id, "message_id": message_id, "text": text}
         if inline_rows:
-            payload["reply_markup"] = _to_tg_inline(inline_rows)
+            payload["reply_markup"] = _to_tg_inline(inline_rows, allow_webapp="api.telegram.org" in base_host)
         try:
             _http_json(f"{base_host}/bot{token}/editMessageText", payload, timeout=15)
         except Exception:
