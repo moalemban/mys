@@ -472,6 +472,7 @@ class MultiMessengerHub:
         self._threads: list[threading.Thread] = []
         self._tg_offset = 0
         self._bale_offset = 0
+        self._soroush_offset = 0
         self._rubika_next_id: str | None = None
 
     def start(self) -> None:
@@ -523,15 +524,17 @@ class MultiMessengerHub:
         for label, host, token in [
             ("telegram", "https://api.telegram.org", cfg.telegram_bot_token.strip()),
             ("bale", "https://tapi.bale.ai", cfg.bale_bot_token.strip()),
+            ("soroush", "https://api.splus.ir", cfg.soroush_bot_token.strip()),
         ]:
             if not token:
                 results[label] = "توکن تنظیم نشده"
                 continue
             try:
-                _http_json(f"{host}/bot{token}/setMyName", {"name": name}, timeout=10)
-                _http_json(f"{host}/bot{token}/setMyShortDescription", {"short_description": short_desc}, timeout=10)
-                _http_json(f"{host}/bot{token}/setMyDescription", {"description": desc}, timeout=10)
                 _http_json(f"{host}/bot{token}/setMyCommands", {"commands": commands}, timeout=10)
+                if label in {"telegram", "bale"}:
+                    _http_json(f"{host}/bot{token}/setMyName", {"name": name}, timeout=10)
+                    _http_json(f"{host}/bot{token}/setMyShortDescription", {"short_description": short_desc}, timeout=10)
+                    _http_json(f"{host}/bot{token}/setMyDescription", {"description": desc}, timeout=10)
                 results[label] = "پروفایل با موفقیت اعمال شد ✅"
             except Exception as exc:
                 results[label] = f"خطا: {exc}"
@@ -548,10 +551,10 @@ class MultiMessengerHub:
             self._send_tg_like("https://api.telegram.org", cfg.telegram_bot_token, cfg.telegram_chat_id, message, image_path, inline_rows=inline_rows)
         if cfg.bale_bot_token and cfg.bale_chat_id:
             self._send_tg_like("https://tapi.bale.ai", cfg.bale_bot_token, cfg.bale_chat_id, message, image_path, inline_rows=inline_rows)
+        if cfg.soroush_bot_token and cfg.soroush_chat_id:
+            self._send_tg_like("https://api.splus.ir", cfg.soroush_bot_token, cfg.soroush_chat_id, message, image_path, inline_rows=inline_rows)
         if cfg.rubika_bot_token and cfg.rubika_chat_id:
             self._send_rubika(cfg.rubika_bot_token, cfg.rubika_chat_id, message, inline_rows=inline_rows)
-        if cfg.soroush_bot_token and cfg.soroush_chat_id:
-            self._send_soroush(cfg.soroush_bot_token, cfg.soroush_chat_id, message)
 
     def _send_tg_document(self, base_host: str, token: str, chat_id: str, file_path: Path, caption: str = "") -> None:
         try:
@@ -752,22 +755,15 @@ class MultiMessengerHub:
                 time.sleep(3)
                 continue
             try:
-                req = urllib.request.Request(
-                    f"https://bot.splus.ir/v2/{token}/getMessage",
-                    headers={"Accept": "text/event-stream", "Content-Type": "application/json"},
+                resp = _http_json(
+                    f"https://api.splus.ir/bot{token}/getUpdates",
+                    {"offset": self._soroush_offset, "timeout": 25},
+                    timeout=30,
                 )
-                with urllib.request.urlopen(req, timeout=40) as resp:
-                    for raw_line in resp:
-                        if self._stop_event.is_set():
-                            break
-                        line = raw_line.decode("utf-8", errors="ignore").strip()
-                        if not line.startswith("data:"):
-                            continue
-                        payload = json.loads(line[5:].strip())
-                        sender = payload.get("from") or payload.get("chat_id")
-                        body = payload.get("body") or payload.get("text")
-                        if sender and body:
-                            reply, _rows = self.router.handle_action(str(body), str(sender), cfg.soroush_chat_id.strip())
-                            self._send_soroush(token, str(sender), reply)
+                nxt = self._process_tg_like_updates(
+                    "https://api.splus.ir", token, cfg.soroush_chat_id.strip(), resp.get("result", [])
+                )
+                if nxt:
+                    self._soroush_offset = max(self._soroush_offset, nxt)
             except Exception:
                 time.sleep(4)
