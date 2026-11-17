@@ -57,6 +57,8 @@ async def require_auth(request: Request, call_next):
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Referrer-Policy"] = "no-referrer"
+        if path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     token = request.cookies.get(SESSION_COOKIE)
