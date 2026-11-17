@@ -33,7 +33,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="پنل هوشمند نوبت‌دهی سوخت", lifespan=lifespan)
 
-PUBLIC_PATHS = {"/login", "/api/auth/login", "/manifest.json", "/sw.js", "/api/bot/avatar"}
+PUBLIC_PATHS = {"/login", "/miniapp", "/api/auth/login", "/manifest.json", "/sw.js", "/api/bot/avatar"}
 
 
 @app.middleware("http")

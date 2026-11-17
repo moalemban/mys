@@ -3,41 +3,64 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ورود به سامانه نوبت‌دهی سوخت</title>
+  <title>ورود به نوبت‌یار هوشمند سوخت</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" />
   <style>
-    * { box-sizing: border-box; font-family: Tahoma, system-ui, sans-serif; }
+    * { box-sizing: border-box; font-family: 'Vazirmatn', Tahoma, system-ui, sans-serif; }
     body {
       margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-      background: #0f172a; color: #f8fafc; padding: 16px;
+      background: radial-gradient(circle at 20% 20%, rgba(16,185,129,0.18), transparent 45%),
+                  radial-gradient(circle at 80% 80%, rgba(59,130,246,0.22), transparent 45%),
+                  linear-gradient(145deg, #070b14, #0f172a);
+      color: #f8fafc; padding: 18px;
     }
     .card {
-      width: 100%; max-width: 380px; background: #1e293b; border: 1px solid #334155;
-      border-radius: 16px; padding: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+      width: 100%; max-width: 400px;
+      background: rgba(30, 41, 59, 0.72);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 22px; padding: 28px 24px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+      text-align: center;
     }
-    h1 { margin: 0 0 6px; font-size: 1.2rem; }
-    p { margin: 0 0 18px; color: #94a3b8; font-size: 0.85rem; }
-    label { display: block; font-size: 0.82rem; color: #cbd5e1; margin-top: 12px; margin-bottom: 4px; }
+    .avatar {
+      width: 76px; height: 76px; border-radius: 20px; object-fit: cover;
+      border: 2px solid rgba(59,130,246,0.7); margin-bottom: 12px;
+      box-shadow: 0 10px 25px rgba(59,130,246,0.28);
+    }
+    h1 { margin: 0 0 6px; font-size: 1.25rem; font-weight: 800; }
+    p { margin: 0 0 20px; color: #94a3b8; font-size: 0.86rem; }
+    label { display: block; text-align: right; font-size: 0.82rem; color: #cbd5e1; margin-top: 12px; margin-bottom: 5px; }
     input {
-      width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #334155;
-      background: #0b1220; color: #f8fafc; font-size: 0.92rem;
+      width: 100%; padding: 11px 14px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(11, 18, 32, 0.85); color: #f8fafc; font-size: 0.94rem; outline: none;
+      transition: border-color 0.2s;
     }
+    input:focus { border-color: #3b82f6; }
     button {
-      width: 100%; margin-top: 18px; padding: 11px; border: none; border-radius: 10px;
-      background: #3b82f6; color: #fff; font-size: 0.95rem; font-weight: bold; cursor: pointer;
+      width: 100%; margin-top: 20px; padding: 12px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, #3b82f6, #10b981);
+      color: #fff; font-size: 0.98rem; font-weight: 700; cursor: pointer;
+      box-shadow: 0 10px 25px rgba(16,185,129,0.25);
+      transition: transform 0.15s, opacity 0.15s;
     }
-    .err { color: #f87171; font-size: 0.84rem; margin-top: 10px; display: none; }
+    button:active { transform: scale(0.98); }
+    .err { color: #fca5a5; background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.4); border-radius: 10px; padding: 8px; font-size: 0.84rem; margin-top: 12px; display: none; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>🔐 ورود به ربات نوبت‌دهی سوخت</h1>
-    <p>نام کاربری و رمز عبور خود را وارد کنید.</p>
+    <img src="/api/bot/avatar" alt="آواتار" class="avatar" onerror="this.style.display='none'" />
+    <h1>نوبت‌یار هوشمند سوخت</h1>
+    <p>برای ورود به پنل مدیریت و ربات، نام کاربری و رمز عبور خود را وارد کنید</p>
     <form onsubmit="doLogin(event)">
       <label>نام کاربری</label>
-      <input type="text" id="username" required autofocus />
+      <input type="text" id="username" placeholder="مثلاً admin" required autofocus />
       <label>رمز عبور</label>
-      <input type="password" id="password" required />
-      <button type="submit">ورود</button>
+      <input type="password" id="password" placeholder="••••••••" required />
+      <button type="submit">🔐 ورود به پنل</button>
       <div id="err" class="err"></div>
     </form>
   </div>
@@ -56,7 +79,7 @@
       });
       const d = await res.json();
       if (!res.ok) {
-        err.textContent = d.detail || 'خطا در ورود';
+        err.textContent = d.detail || 'نام کاربری یا رمز عبور اشتباه است';
         err.style.display = 'block';
         return;
       }

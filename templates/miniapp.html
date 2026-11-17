@@ -3,72 +3,160 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0f172a" />
+  <meta name="theme-color" content="#070b14" />
   <link rel="manifest" href="/manifest.json" />
-  <title>مینی‌اپ نوبت‌دهی سوخت</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" />
+  <title>مینی‌اپ نوبت‌یار سوخت</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
     :root {
-      --bg: var(--tg-theme-bg-color, #0f172a);
-      --card: var(--tg-theme-secondary-bg-color, #1e293b);
-      --text: var(--tg-theme-text-color, #f8fafc);
-      --muted: var(--tg-theme-hint-color, #94a3b8);
-      --primary: var(--tg-theme-button-color, #3b82f6);
-      --border: #334155;
-      --success: #10b981;
+      --bg: #070b14;
+      --glass: rgba(30, 41, 59, 0.68);
+      --glass-2: rgba(15, 23, 42, 0.78);
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --primary: #3b82f6;
+      --emerald: #10b981;
+      --amber: #f59e0b;
       --danger: #ef4444;
     }
-    * { box-sizing: border-box; font-family: Tahoma, system-ui, sans-serif; }
-    body { margin: 0; background: var(--bg); color: var(--text); padding-bottom: 76px; }
+    * { box-sizing: border-box; font-family: 'Vazirmatn', Tahoma, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; min-height: 100vh; color: var(--text); padding-bottom: 84px;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(16,185,129,0.16), transparent 42%),
+        radial-gradient(circle at 85% 20%, rgba(59,130,246,0.18), transparent 45%),
+        linear-gradient(160deg, #070b14, #0f172a);
+    }
     .wrap { max-width: 540px; margin: 0 auto; padding: 14px; }
-    .hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .hdr h1 { margin: 0; font-size: 1.1rem; }
-    .pill { font-size: 0.78rem; padding: 4px 10px; border-radius: 999px; background: rgba(59,130,246,0.2); color: #60a5fa; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
-    .card h2 { margin: 0 0 10px 0; font-size: 0.98rem; }
-    label { display: block; font-size: 0.78rem; color: var(--muted); margin: 8px 0 4px; }
-    input, select { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid var(--border); background: rgba(0,0,0,0.2); color: var(--text); font-size: 0.9rem; }
-    .btn { width: 100%; padding: 11px; border: none; border-radius: 10px; font-weight: bold; font-size: 0.92rem; color: #fff; cursor: pointer; margin-top: 10px; }
-    .btn-primary { background: var(--primary); }
-    .btn-success { background: var(--success); }
-    .btn-danger { background: var(--danger); }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      background: var(--glass); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border); border-radius: 18px; padding: 10px 14px; margin-bottom: 14px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.3);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand img { width: 40px; height: 40px; border-radius: 12px; border: 1px solid rgba(59,130,246,0.5); object-fit: cover; }
+    .brand h1 { margin: 0; font-size: 1rem; font-weight: 800; }
+    .brand small { display: block; font-size: 0.72rem; color: var(--muted); }
+    .pill { font-size: 0.75rem; font-weight: 700; padding: 5px 10px; border-radius: 999px; background: rgba(59,130,246,0.16); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35); }
+    .pill.on { background: rgba(16,185,129,0.16); color: #34d399; border-color: rgba(16,185,129,0.4); }
+    .card {
+      background: var(--glass); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 12px;
+      box-shadow: 0 14px 35px rgba(0,0,0,0.28);
+    }
+    .card h2 { margin: 0 0 10px; font-size: 0.96rem; font-weight: 700; color: #e2e8f0; }
+    label { display: block; font-size: 0.78rem; color: var(--muted); margin: 9px 0 4px; }
+    input, select {
+      width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border);
+      background: var(--glass-2); color: var(--text); font-size: 0.88rem; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--primary); }
     .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .station-card { background: rgba(16,185,129,0.1); border: 1px solid var(--success); border-radius: 12px; padding: 12px; margin-top: 10px; }
-    .times-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .tbtn { border: none; border-radius: 8px; padding: 7px 11px; background: var(--success); color: #fff; font-weight: bold; font-size: 0.84rem; cursor: pointer; }
-    .user-row { display: flex; justify-content: space-between; align-items: center; padding: 10px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; }
-    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--card); border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr 1fr; z-index: 50; }
-    .nav button { background: none; border: none; color: var(--muted); padding: 12px 6px; font-size: 0.82rem; font-weight: bold; cursor: pointer; }
-    .nav button.active { color: #60a5fa; border-top: 2px solid #60a5fa; }
-    .tab { display: none; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .btn {
+      width: 100%; padding: 11px 14px; border: none; border-radius: 12px; font-weight: 700;
+      font-size: 0.9rem; color: #fff; cursor: pointer; margin-top: 10px;
+      transition: transform 0.12s, opacity 0.15s;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-grad { background: linear-gradient(135deg, #3b82f6, #10b981); box-shadow: 0 8px 22px rgba(16,185,129,0.25); }
+    .btn-primary { background: var(--primary); }
+    .btn-success { background: var(--emerald); }
+    .btn-danger { background: var(--danger); }
+    .btn-ghost { background: rgba(255,255,255,0.08); border: 1px solid var(--border); }
+    .station-card {
+      background: linear-gradient(145deg, rgba(16,185,129,0.12), rgba(15,23,42,0.75));
+      border: 1px solid rgba(16,185,129,0.45); border-radius: 16px; padding: 14px; margin-bottom: 10px;
+    }
+    .times-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    .tbtn {
+      border: 1px solid rgba(16,185,129,0.5); border-radius: 10px; padding: 7px 12px;
+      background: rgba(16,185,129,0.18); color: #6ee7b7; font-weight: 700; font-size: 0.84rem; cursor: pointer;
+    }
+    .tbtn:hover { background: var(--emerald); color: #fff; }
+    .user-row {
+      display: flex; justify-content: space-between; align-items: center; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: 12px; margin-bottom: 8px; background: var(--glass-2);
+    }
+    .nav {
+      position: fixed; bottom: 10px; left: 12px; right: 12px; max-width: 516px; margin: 0 auto;
+      background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border); border-radius: 18px;
+      display: grid; grid-template-columns: repeat(4, 1fr); padding: 4px; z-index: 50;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+    }
+    .nav button {
+      background: none; border: none; color: var(--muted); padding: 9px 4px;
+      font-size: 0.76rem; font-weight: 700; cursor: pointer; border-radius: 14px; transition: all 0.2s;
+    }
+    .nav button.active { background: rgba(59,130,246,0.2); color: #60a5fa; }
+    .tab { display: none; animation: fadeIn 0.2s ease; }
     .tab.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .lock-overlay {
+      position: fixed; inset: 0; z-index: 100; display: none; align-items: center; justify-content: center; padding: 18px;
+      background: rgba(7, 11, 20, 0.92); backdrop-filter: blur(16px);
+    }
+    .toast {
+      position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 200;
+      background: #10b981; color: #fff; padding: 9px 16px; border-radius: 12px; font-size: 0.84rem;
+      font-weight: 700; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+    }
   </style>
 </head>
 <body>
+  <div id="toast" class="toast"></div>
+
+  <!-- Built-in Glass Auth Lock for Mini App -->
+  <div id="lockScreen" class="lock-overlay">
+    <div class="card" style="width:100%; max-width:380px; text-align:center;">
+      <img src="/api/bot/avatar" alt="آواتار" style="width:72px; height:72px; border-radius:18px; border:2px solid #3b82f6; margin-bottom:10px;" onerror="this.style.display='none'" />
+      <h2 style="font-size:1.15rem; margin-bottom:4px;">🔐 ورود به پنل مینی‌اپ</h2>
+      <div style="font-size:0.82rem; color:var(--muted); margin-bottom:14px;">نام کاربری و رمز عبور خود را وارد کنید</div>
+      <input id="l_user" type="text" placeholder="نام کاربری (مثلاً admin)" style="margin-bottom:8px;" />
+      <input id="l_pass" type="password" placeholder="رمز عبور" />
+      <button class="btn btn-grad" onclick="miniLogin()">ورود به پنل</button>
+      <div id="l_err" style="color:#fca5a5; font-size:0.8rem; margin-top:8px;"></div>
+    </div>
+  </div>
+
   <div class="wrap">
-    <div class="hdr">
-      <h1>⛽ مینی‌اپ نوبت سوخت</h1>
+    <div class="topbar">
+      <div class="brand">
+        <img src="/api/bot/avatar" alt="لوگو" onerror="this.style.display='none'" />
+        <div>
+          <h1>نوبت‌یار هوشمند سوخت</h1>
+          <small id="userGreeting">در حال بارگذاری...</small>
+        </div>
+      </div>
       <span id="runPill" class="pill">آماده</span>
     </div>
 
     <!-- TAB 1: STATIONS & DIRECT BOOKING -->
     <div id="tab-book" class="tab active">
       <div class="card">
-        <h2>استعلام جایگاه‌به‌جایگاه</h2>
+        <h2>⛽ استعلام جایگاه‌به‌جایگاه و رزرو</h2>
         <select id="m_profile" onchange="pickUser()"></select>
         <div class="row2">
           <div><label>کد پرسنلی</label><input id="m_p" type="text" /></div>
           <div><label>کد ملی</label><input id="m_n" type="text" /></div>
         </div>
         <div class="row2">
-          <div><label>سهمیه</label>
-            <select id="m_fuel"><option value="20">۲۰ لیتر</option><option value="40" selected>۴۰ لیتر</option><option value="60">۶۰ لیتر</option></select>
+          <div><label>سهمیه سوخت</label>
+            <select id="m_fuel"><option value="20">۲۰ لیتر</option><option value="40" selected>۴۰ لیتر (پیش‌فرض)</option><option value="60">۶۰ لیتر</option></select>
           </div>
-          <div><label>حالت</label>
-            <select id="m_dry"><option value="false">ثبت واقعی</option><option value="true">حالت تست</option></select>
+          <div><label>حالت اجرا</label>
+            <select id="m_dry"><option value="false">⚡ ثبت واقعی</option><option value="true">🧪 حالت تست</option></select>
           </div>
         </div>
-        <button class="btn btn-primary" onclick="fetchStations()">🔍 نمایش جایگاه‌ها و ساعت‌های خالی</button>
+        <button class="btn btn-grad" onclick="fetchStations()">🔍 نمایش جایگاه‌ها و ساعت‌های خالی</button>
+        <div class="row2" style="margin-top:4px;">
+          <a href="/api/export/excel" target="_blank" style="text-decoration:none;"><button type="button" class="btn btn-ghost">📊 اکسل (.xlsx)</button></a>
+          <a href="/api/export/pdf" target="_blank" style="text-decoration:none;"><button type="button" class="btn btn-ghost">📄 فایل PDF</button></a>
+        </div>
       </div>
       <div id="m_result"></div>
     </div>
@@ -76,32 +164,65 @@
     <!-- TAB 2: GROUP BOOKING -->
     <div id="tab-group" class="tab">
       <div class="card">
-        <h2>👨‍👩‍👧‍👦 نوبت‌گیری گروهی خودکار</h2>
-        <div style="font-size:0.82rem; color:var(--muted); margin-bottom:10px;">
-          کاربران انتخاب‌شده را به ترتیب با بازه زمانی و سهمیه پیش‌فرض (۴۰ لیتر) نوبت‌گیری می‌کند:
+        <h2>👨‍👩‍👧‍👦 نوبت‌گیری گروهی</h2>
+        <div style="font-size:0.8rem; color:var(--muted); margin-bottom:10px;">
+          کاربران تیک‌خورده به ترتیب با بازه زمانی و سهمیه پیش‌فرض نوبت‌گیری می‌شوند:
         </div>
         <div id="groupUsers"></div>
-        <button class="btn btn-success" onclick="runGroupBook()">🚀 شروع نوبت‌گیری گروهی</button>
+        <button class="btn btn-success" onclick="runGroupBook()">🚀 اجرای نوبت‌گیری گروهی</button>
+      </div>
+      <div class="card">
+        <h2>➕ افزودن سریع کاربر سوخت</h2>
+        <div class="row2">
+          <input id="g_p" type="text" placeholder="کد پرسنلی" />
+          <input id="g_n" type="text" placeholder="کد ملی (۱۰ رقم)" />
+        </div>
+        <button class="btn btn-primary" onclick="addFuelUser()">ذخیره کاربر</button>
       </div>
       <div id="groupResult"></div>
     </div>
 
-    <!-- TAB 3: BOT & TIME RANGE -->
+    <!-- TAB 3: BOT & AUTO-NEXT -->
     <div id="tab-bot" class="tab">
       <div class="card">
-        <h2>🤖 پایش خودکار و بازه زمانی</h2>
+        <h2>🤖 ربات پایش خودکار</h2>
+        <div id="nextSched" style="display:none; padding:10px; border-radius:12px; background:rgba(59,130,246,0.16); border:1px solid rgba(59,130,246,0.4); font-size:0.82rem; margin-bottom:10px;"></div>
         <div class="row2">
-          <button class="btn btn-success" onclick="postApi('/api/start')">▶️ شروع پایش</button>
-          <button class="btn btn-danger" onclick="postApi('/api/stop')">⏹ توقف</button>
+          <button class="btn btn-success" style="margin-top:0;" onclick="postApi('/api/start')">▶️ شروع پایش</button>
+          <button class="btn btn-danger" style="margin-top:0;" onclick="postApi('/api/stop')">⏹ توقف</button>
         </div>
-        <label>بازه زمانی ثبت خودکار (شروع / پایان اصلی / نهایتاً)</label>
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px;">
+        <button class="btn btn-primary" onclick="postApi('/api/check-now')">🔍 بررسی فوری الان</button>
+        <label>بازه ساعت ثبت خودکار (شروع / اصلی / نهایتاً)</label>
+        <div class="row3">
           <input id="b_min" type="text" placeholder="14:00" />
           <input id="b_max" type="text" placeholder="16:30" />
           <input id="b_fb" type="text" placeholder="17:00" />
         </div>
-        <button class="btn btn-primary" onclick="saveRange()">💾 ذخیره بازه زمانی</button>
-        <div id="m_logs" style="margin-top:10px; font-size:0.76rem; color:var(--muted); max-height:200px; overflow-y:auto; direction:ltr;"></div>
+        <button class="btn btn-ghost" onclick="saveRange()">💾 ذخیره بازه زمانی</button>
+      </div>
+      <div class="card">
+        <h2>📜 لاگ لحظه‌ای</h2>
+        <div id="m_logs" style="font-size:0.74rem; color:var(--muted); max-height:190px; overflow-y:auto; direction:ltr; white-space:pre-wrap;"></div>
+      </div>
+    </div>
+
+    <!-- TAB 4: ADMIN & SECURITY -->
+    <div id="tab-admin" class="tab">
+      <div class="card">
+        <h2>🔑 تغییر رمز عبور و خروج</h2>
+        <input id="my_new_pw" type="password" placeholder="رمز عبور جدید (حداقل ۴ کاراکتر)" />
+        <button class="btn btn-primary" onclick="changeMyPassword()">ذخیره رمز عبور جدید</button>
+        <button class="btn btn-danger" onclick="miniLogout()">🚪 خروج از حساب پنل</button>
+      </div>
+      <div id="adminCard" class="card" style="display:none;">
+        <h2>👑 پنل ادمین (مدیریت کاربران ورود)</h2>
+        <div id="admList"></div>
+        <div class="row3" style="margin-top:8px;">
+          <input id="adm_u" type="text" placeholder="نام کاربری" />
+          <input id="adm_p" type="password" placeholder="رمز عبور" />
+          <select id="adm_r"><option value="user">کاربر</option><option value="admin">ادمین</option></select>
+        </div>
+        <button class="btn btn-success" onclick="createAdmUser()">➕ ساخت کاربر جدید</button>
       </div>
     </div>
   </div>
@@ -110,6 +231,7 @@
     <button class="active" onclick="switchTab('book', this)">⛽ جایگاه‌ها</button>
     <button onclick="switchTab('group', this)">👨‍👩‍👧‍👦 گروهی</button>
     <button onclick="switchTab('bot', this)">🤖 ربات</button>
+    <button onclick="switchTab('admin', this)">🔐 پنل</button>
   </nav>
 
   <script>
@@ -119,11 +241,40 @@
     }
     let state = null;
 
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 2600);
+    }
+
     function switchTab(name, btn) {
       document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.nav button').forEach(el => el.classList.remove('active'));
       document.getElementById('tab-' + name).classList.add('active');
       btn.classList.add('active');
+    }
+
+    async function miniLogin() {
+      const err = document.getElementById('l_err');
+      err.textContent = '';
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('l_user').value.trim(),
+          password: document.getElementById('l_pass').value,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) { err.textContent = d.detail || 'خطا در ورود'; return; }
+      document.getElementById('lockScreen').style.display = 'none';
+      initApp();
+    }
+
+    async function miniLogout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      document.getElementById('lockScreen').style.display = 'flex';
     }
 
     async function postApi(url, body = null) {
@@ -132,7 +283,9 @@
         headers: body ? { 'Content-Type': 'application/json' } : {},
         body: body ? JSON.stringify(body) : null,
       });
+      if (res.status === 401) { document.getElementById('lockScreen').style.display = 'flex'; return {}; }
       const d = await res.json();
+      if (d.message) showToast(d.message);
       loadState();
       return d;
     }
@@ -171,7 +324,7 @@
       box.innerHTML = d.slots.map(s => `
         <div class="station-card">
           <div><strong>⛽ ${s.station}</strong></div>
-          <div style="font-size:0.82rem; color:var(--muted);">📅 ${s.day} (${s.times.length} ساعت خالی)</div>
+          <div style="font-size:0.8rem; color:var(--muted);">📅 ${s.day} (${s.times.length} ساعت خالی)</div>
           <div class="times-grid">
             ${s.times.map(t => `<button class="tbtn" onclick="bookOne('${s.url}', '${t}')">${t}</button>`).join('')}
           </div>
@@ -207,6 +360,15 @@
       document.getElementById('m_result').innerHTML = `<div class="card">${d.message}</div>`;
     }
 
+    async function addFuelUser() {
+      const p = document.getElementById('g_p').value.trim();
+      const n = document.getElementById('g_n').value.trim();
+      if (!p || !n) { showToast('کد پرسنلی و کد ملی را وارد کنید'); return; }
+      await postApi('/api/profiles', { personnel_code: p, national_code: n, activate: false });
+      document.getElementById('g_p').value = '';
+      document.getElementById('g_n').value = '';
+    }
+
     async function runGroupBook() {
       const box = document.getElementById('groupResult');
       box.innerHTML = '<div class="card">⏳ در حال نوبت‌گیری گروهی...</div>';
@@ -224,11 +386,65 @@
       });
     }
 
+    async function changeMyPassword() {
+      const pw = document.getElementById('my_new_pw').value;
+      if (!pw) return;
+      const d = await postApi('/api/auth/change-password', { new_password: pw });
+      if (d.ok) document.getElementById('my_new_pw').value = '';
+    }
+
+    async function loadAdmin() {
+      const meRes = await fetch('/api/auth/me');
+      if (meRes.status === 401) { document.getElementById('lockScreen').style.display = 'flex'; return false; }
+      const me = (await meRes.json()).user;
+      document.getElementById('userGreeting').textContent = `کاربر: ${me.username} (${me.role})`;
+      if (me.role === 'admin') {
+        document.getElementById('adminCard').style.display = 'block';
+        const r = await fetch('/api/admin/users');
+        const uData = await r.json();
+        document.getElementById('admList').innerHTML = uData.users.map(u => `
+          <div class="user-row">
+            <div><strong>${u.username}</strong> (${u.role})</div>
+            <button class="btn btn-danger" style="width:auto; margin:0; padding:5px 10px; font-size:0.76rem;" onclick="delAdm('${u.username}')">حذف</button>
+          </div>
+        `).join('');
+      }
+      return true;
+    }
+
+    async function createAdmUser() {
+      await postApi('/api/admin/users', {
+        username: document.getElementById('adm_u').value.trim(),
+        password: document.getElementById('adm_p').value,
+        role: document.getElementById('adm_r').value,
+      });
+      document.getElementById('adm_u').value = '';
+      document.getElementById('adm_p').value = '';
+      loadAdmin();
+    }
+
+    async function delAdm(u) {
+      if (!confirm(`کاربر ${u} حذف شود؟`)) return;
+      await fetch(`/api/admin/users/${u}`, { method: 'DELETE' });
+      loadAdmin();
+    }
+
     async function loadState() {
       const res = await fetch('/api/status');
+      if (res.status === 401) { document.getElementById('lockScreen').style.display = 'flex'; return; }
       state = await res.json();
-      document.getElementById('runPill').textContent = state.running ? '🟢 در حال پایش' : '🔴 متوقف';
+      const pill = document.getElementById('runPill');
+      pill.textContent = state.running ? '🟢 در حال پایش' : '🔴 متوقف';
+      pill.className = 'pill' + (state.running ? ' on' : '');
       document.getElementById('m_logs').innerText = (state.logs || []).slice(-12).join('\n');
+
+      const ns = document.getElementById('nextSched');
+      if (state.settings.auto_next_booking && state.settings.next_eligible_jalali) {
+        ns.style.display = 'block';
+        ns.textContent = `📅 نوبت بعدی خودکار برای ${state.settings.next_eligible_jalali} زمان‌بندی شده است.`;
+      } else {
+        ns.style.display = 'none';
+      }
 
       const profiles = state.settings.profiles || [];
       const sel = document.getElementById('m_profile');
@@ -256,8 +472,14 @@
       `).join('');
     }
 
-    loadState();
-    setInterval(loadState, 3000);
+    async function initApp() {
+      const ok = await loadAdmin();
+      if (ok) {
+        await loadState();
+        setInterval(loadState, 3000);
+      }
+    }
+    initApp();
   </script>
 </body>
 </html>
