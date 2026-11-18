@@ -119,10 +119,8 @@ class BotCommandRouter:
             [("📊 وضعیت", "menu:status"), (f"{mode_icon} تنظیمات", "menu:settings")],
             [("📊 اکسل نوبت‌ها", "export:excel"), ("📄 PDF نوبت‌ها", "export:pdf")],
             [("📜 تاریخچه", "menu:history"), ("🗑 لغو نوبت", "menu:cancel_ask")],
-            [("🚪 خروج از حساب ربات", "act:logout")],
+            [("📱 مینی‌اپ (به‌زودی...)", "act:miniapp_soon"), ("🚪 خروج از حساب", "act:logout")],
         ]
-        if cfg.mini_app_url.startswith("https://"):
-            rows.append([("📱 باز کردن مینی‌اپ (Mini App)", f"webapp:{cfg.mini_app_url}")])
         return rows
 
     def stations_inline_rows(self) -> list[list[tuple[str, str]]]:
@@ -335,6 +333,13 @@ class BotCommandRouter:
                     "لطفاً **کد پرسنلی** را ارسال کنید:",
                     None,
                 )
+
+        if cmd == "act:miniapp_soon":
+            return (
+                "🚀 مینی‌اپ اختصاصی به‌زودی اضافه می‌شود!\n"
+                "در حال حاضر تمام امکانات (پایش لحظه‌ای، جایگاه‌به‌جایگاه، رزرو خودکار، گروهی و خروجی اکسل/PDF) مستقیماً داخل همین ربات فعال است.",
+                self.main_inline_rows(),
+            )
 
         if cmd == "act:adduser":
             self._chat_states[f"chat:{chat_id}"] = {"step": "awaiting_profile_personnel"}
