@@ -5,22 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#12306b" />
   <link rel="manifest" href="/manifest.json" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" />
   <title>پنل هوشمند نوبت‌دهی سوخت</title>
   <style>
     :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --card-2: #0b1220;
-      --border: #334155;
+      --bg: #040712;
+      --card: linear-gradient(155deg, rgba(255,255,255,0.085), rgba(255,255,255,0.025));
+      --card-2: rgba(9, 14, 28, 0.72);
+      --border: rgba(255, 255, 255, 0.14);
+      --border-top: rgba(255, 255, 255, 0.26);
       --text: #f8fafc;
-      --muted: #94a3b8;
+      --muted: #a5b4fc;
       --primary: #3b82f6;
       --success: #10b981;
       --danger: #ef4444;
       --warning: #f59e0b;
     }
-    * { box-sizing: border-box; font-family: Tahoma, "Segoe UI", system-ui, sans-serif; }
-    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.6; }
+    * { box-sizing: border-box; font-family: 'Vazirmatn', Tahoma, "Segoe UI", system-ui, sans-serif; }
+    body {
+      margin: 0; color: var(--text); line-height: 1.6;
+      background:
+        radial-gradient(circle at 12% 10%, rgba(16,185,129,0.2), transparent 40%),
+        radial-gradient(circle at 88% 15%, rgba(59,130,246,0.22), transparent 42%),
+        radial-gradient(circle at 50% 90%, rgba(139,92,246,0.16), transparent 45%),
+        var(--bg);
+      min-height: 100vh;
+    }
     .container { max-width: 1120px; margin: 0 auto; padding: 20px; }
     header {
       display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
@@ -35,8 +45,11 @@
     .badge.stopped { background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid #ef4444; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
     .card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-      padding: 18px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      background: var(--card);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--border); border-top-color: var(--border-top); border-radius: 20px;
+      padding: 20px; box-shadow: 0 18px 42px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.18);
     }
     .card h2 { margin: 0 0 14px 0; font-size: 1.05rem; color: #e2e8f0; }
     .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
